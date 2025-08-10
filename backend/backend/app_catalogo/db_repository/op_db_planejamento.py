@@ -59,6 +59,10 @@ class ProcessoRepository:
     async def listar_itens_por_numero_processo(self, numero_processo: str, skip: int = 0, limit: int = 100) -> list[ItensCatalogo]:
         """Returns all catalog items associated with the given process number."""
         return await listar_itens_por_numero_processo(self.db, numero_processo, skip, limit)
+    
+    async def pesquisar_processos_por_unidade(self, unidade: str) -> List[PlanejamentoAquisicao]:
+        """Searches for all processes by unit."""
+        return await pesquisar_processos_por_unidade(self.db, unidade)
 
 
 async def criar_processo(db: AsyncSession, proc_data: dict) -> PlanejamentoAquisicao:
@@ -397,7 +401,25 @@ async def atualizar_processo_por_numero(
         return None  # Retorna None em caso de qualquer outro erro de DB
     
 
+async def pesquisar_processos_por_unidade(db: AsyncSession, unidade: str) -> List[PlanejamentoAquisicao]:
+    """Busca processos por unidade de forma segura.
+    Args:
+        db (AsyncSession): Sessão assíncrona SQLAlchemy.
+        unidade (str): Unidade do processo.
+    Returns:
+        List[PlanejamentoAquisicao]: Lista de processos encontrados.
+    Raises:
+        SQLAlchemyError: Se houver outro erro no banco de dados.
+    """
+    logger.info(f"Buscando processos por unidade: {unidade}")
+    try:
+        query = select(PlanejamentoAquisicao).where(PlanejamentoAquisicao.unidade == unidade)
+        result = await db.execute(query)
+        return result.scalars().all()
 
+    except SQLAlchemyError as e:
+        logger.error(f"Erro de DB ao buscar processos por unidade {unidade}: {e}", exc_info=True)
+        return []
 
 
 async def listar_itens_por_numero_processo(

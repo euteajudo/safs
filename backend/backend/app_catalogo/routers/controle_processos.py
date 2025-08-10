@@ -189,3 +189,20 @@ async def delete_processo(
             detail="Processo não encontrado para remoção"
         )
     return None # Retorna uma resposta vazia com status 204
+
+@router.get(
+    "/unidade/{unidade}",
+    response_model=List[processo_schemas.ProcessoRead],
+    summary="Lista processos por unidade"
+)
+async def list_processos_by_unidade(
+    unidade: str,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Lista processos por unidade."""
+    logger.info(f"Recebida requisição para listar processos por unidade: {unidade}")
+    repo = ProcessoRepository(db)
+    processos = await repo.pesquisar_processos_por_unidade(unidade)
+    logger.debug(f"Retornando {len(processos)} processos.")
+    return processos
+    

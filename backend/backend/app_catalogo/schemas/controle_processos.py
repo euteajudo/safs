@@ -16,6 +16,7 @@ class StatusCompra(str, Enum):
     CANCELADA = "Cancelada"
 
 class ProcessoBase(BaseModel):
+    unidade: str = Field(..., min_length=1, max_length=60, description="Unidade do processo")
     objeto_aquisicao: str = Field(..., min_length=1, max_length=500, description="Objeto da aquisição")
     numero_processo_planejamento: str = Field(..., min_length=1, max_length=50, description="Número do processo de planejamento")
     numero_item: str = Field(..., min_length=1, max_length=20, description="Número do item")
@@ -47,6 +48,7 @@ class ProcessoCreate(ProcessoBase):
     pass
 
 class ProcessoUpdate(BaseModel):
+    unidade: Optional[str] = Field(None, min_length=1, max_length=60, description="Unidade do processo")
     objeto_aquisicao: Optional[str] = Field(None, min_length=1, max_length=500, description="Objeto da aquisição")
     numero_processo_planejamento: Optional[str] = Field(None, min_length=1, max_length=50, description="Número do processo de planejamento")
     numero_item: Optional[str] = Field(None, min_length=1, max_length=20, description="Número do item")

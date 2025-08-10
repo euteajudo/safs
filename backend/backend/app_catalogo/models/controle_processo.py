@@ -9,7 +9,7 @@ class PlanejamentoAquisicao(Base):
     __tablename__ = "planejamento_aquisicao"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    
+    unidade: Mapped[str] = mapped_column(String(60), nullable=False)
     objeto_aquisicao: Mapped[str] = mapped_column(String(255), nullable=False)
     numero_processo_planejamento: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     numero_item: Mapped[str] = mapped_column(String(10), nullable=False)
