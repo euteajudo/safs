@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0ZTIiLCJleHAiOjE3NTM1NDg3NjB9.6i1oijE8IIN-8EuSE6bS8MTfavu0tB1440DSDMVqMX0\")",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm install:*)",
+      "Bash(move layout.js layout.tsx)",
+      "Bash(mv:*)",
+      "Bash(npx --legacy-peer-deps shadcn@latest init)",
+      "Bash(mkdir:*)",
+      "Bash(npx:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(rg:*)",
+      "Bash(rmdir:*)",
+      "Bash(rm:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(timeout 20s npm run dev)",
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(uvicorn:*)"
+    ],
+    "deny": []
+  }
+}
