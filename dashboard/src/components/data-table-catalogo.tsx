@@ -123,23 +123,36 @@ import * as XLSX from 'xlsx'
 export const schema = z.object({
   id: z.number(),
   unidade: z.string(),
-  marca: z.string().optional(),
-  embalagem: z.string().optional(),
+  descritivo_detalhado: z.string().optional(),
   codigo_master: z.string(),
   codigo_aghu_hu: z.string().optional(),
   codigo_aghu_meac: z.string().optional(),
   catmat: z.string().optional(),
   codigo_ebserh: z.string().optional(),
-  descricao: z.string(),
+  descritivo_resumido: z.string(),
   apresentacao: z.string().optional(),
   classificacao_xyz: z.string().optional(),
+  responsavel_tecnico: z.string().optional(),
+  responsavel_tecnico_id: z.number().optional(),
   comprador_id: z.number().optional(),
   controlador_id: z.number().optional(),
-  processo_ids: z.array(z.number()).optional(),
   observacao: z.string().optional(),
-  // Campos calculados/relacionados
-  comprador_nome: z.string().optional(),
-  controlador_nome: z.string().optional(),
+  // Relacionamentos
+  comprador: z.object({
+    id: z.number(),
+    nome: z.string(),
+    email: z.string(),
+  }).optional(),
+  controlador: z.object({
+    id: z.number(),
+    nome: z.string(),
+    email: z.string(),
+  }).optional(),
+  responsaveis_tecnicos: z.array(z.object({
+    id: z.number(),
+    nome: z.string(),
+    email: z.string(),
+  })).optional(),
   processo: z.object({
     id: z.number(),
     numero_processo_planejamento: z.string(),
@@ -348,11 +361,11 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "descricao",
+    accessorKey: "descritivo_resumido",
     header: "Descrição",
     cell: ({ row }) => (
-      <div className="max-w-xs truncate" title={row.original.descricao}>
-        {row.original.descricao}
+      <div className="max-w-xs truncate" title={row.original.descritivo_resumido}>
+        {row.original.descritivo_resumido}
       </div>
     ),
   },
@@ -369,24 +382,6 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         </Badge>
       )
     },
-  },
-  {
-    accessorKey: "marca",
-    header: "Marca",
-    cell: ({ row }) => (
-      <div className="text-sm text-muted-foreground">
-        {row.original.marca || "-"}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "embalagem",
-    header: "Embalagem",
-    cell: ({ row }) => (
-      <div className="text-sm text-muted-foreground">
-        {row.original.embalagem || "-"}
-      </div>
-    ),
   },
   {
     accessorKey: "apresentacao",
@@ -449,7 +444,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <EbserhDetailsSheet 
         codigoEbserh={row.original.codigo_ebserh}
         codigoMaster={row.original.codigo_master}
-        descricao={row.original.descricao}
+        descricao={row.original.descritivo_resumido}
       />
     ),
   },
@@ -459,7 +454,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     cell: ({ row }) => {
       return (
         <div className="text-sm">
-          {row.original.comprador_nome || (
+          {row.original.comprador?.nome || (
             <span className="text-muted-foreground italic">Não atribuído</span>
           )}
         </div>
@@ -472,11 +467,52 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     cell: ({ row }) => {
       return (
         <div className="text-sm">
-          {row.original.controlador_nome || (
+          {row.original.controlador?.nome || (
             <span className="text-muted-foreground italic">Não atribuído</span>
           )}
         </div>
       )
+    },
+  },
+  {
+    accessorKey: "responsaveis_tecnicos",
+    header: "Responsável Técnico",
+    cell: ({ row }) => {
+      const responsaveisTecnicos = row.original.responsaveis_tecnicos || [];
+      const responsavelTexto = row.original.responsavel_tecnico;
+      
+      // Se tem relacionamento many-to-many, mostrar os nomes
+      if (responsaveisTecnicos.length > 0) {
+        if (responsaveisTecnicos.length === 1) {
+          return (
+            <div className="text-sm">
+              {responsaveisTecnicos[0].nome}
+            </div>
+          );
+        } else {
+          return (
+            <div className="text-sm">
+              <div>{responsaveisTecnicos[0].nome}</div>
+              <div className="text-xs text-muted-foreground">
+                +{responsaveisTecnicos.length - 1} mais
+              </div>
+            </div>
+          );
+        }
+      }
+      
+      // Se tem campo texto, mostrar o texto
+      if (responsavelTexto) {
+        return (
+          <div className="text-sm">
+            {responsavelTexto}
+          </div>
+        );
+      }
+      
+      return (
+        <span className="text-muted-foreground italic">Não atribuído</span>
+      );
     },
   },
   {
@@ -562,11 +598,18 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
 
 export function DataTable({
   data: initialData,
+  onRefresh,
 }: {
   data: z.infer<typeof schema>[]
+  onRefresh?: () => void
 }) {
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
+  
+  // Atualizar dados quando initialData mudar
+  React.useEffect(() => {
+    setData(initialData)
+  }, [initialData])
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -617,11 +660,11 @@ export function DataTable({
     onPaginationChange: setPagination,
     globalFilterFn: (row, columnId, value) => {
       const codigoMaster = row.getValue("codigo_master") as string;
-      const descricao = row.getValue("descricao") as string;
+      const descritivo_resumido = row.getValue("descritivo_resumido") as string;
       
       return (
         codigoMaster?.toLowerCase().includes(value.toLowerCase()) ||
-        descricao?.toLowerCase().includes(value.toLowerCase())
+        descritivo_resumido?.toLowerCase().includes(value.toLowerCase())
       );
     },
     getCoreRowModel: getCoreRowModel(),
@@ -945,6 +988,7 @@ export function DataTable({
                 <span className="lg:hidden">Adicionar</span>
               </Button>
             }
+            onSuccess={onRefresh}
           />
         </div>
       </div>

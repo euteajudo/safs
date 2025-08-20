@@ -38,23 +38,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { api } from "@/lib/api";
 
 const catalogoSchema = z.object({
   unidade: z.string().min(1, "Unidade é obrigatória").max(20),
-  marca: z.string().max(60).optional().or(z.literal("")),
-  embalagem: z.string().max(60).optional().or(z.literal("")),
+  descritivo_detalhado: z.string().max(4000).optional().or(z.literal("")),
   codigo_master: z.string().min(1, "Código Master é obrigatório").max(20),
   codigo_aghu_hu: z.string().max(20).optional().or(z.literal("")),
   codigo_aghu_meac: z.string().max(20).optional().or(z.literal("")),
   catmat: z.string().max(20).optional().or(z.literal("")),
   codigo_ebserh: z.string().max(20).optional().or(z.literal("")),
-  descricao: z.string().min(1, "Descrição é obrigatória").max(255),
+  descritivo_resumido: z.string().min(1, "Descritivo resumido é obrigatório").max(300),
   apresentacao: z.string().max(100).optional().or(z.literal("")),
   classificacao_xyz: z.string().max(10).optional().or(z.literal("")),
+  responsavel_tecnico: z.string().max(100).optional().or(z.literal("")),
+  responsavel_tecnico_id: z.string().optional().or(z.literal("")),
   comprador_id: z.string().optional().or(z.literal("")),
   controlador_id: z.string().optional().or(z.literal("")),
-  processo_id: z.string().optional().or(z.literal("")),
-  processo_ids_adicionais: z.array(z.string()).optional(),
   observacao: z.string().max(255).optional().or(z.literal("")),
 });
 
@@ -80,13 +80,15 @@ interface CatalogoFormDialogProps {
     processos_adicionais?: Processo[] 
   };
   mode?: "create" | "edit";
+  onSuccess?: () => void;
 }
 
-export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoFormDialogProps) {
+export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }: CatalogoFormDialogProps) {
   const [open, setOpen] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(mode === "create");
   const [compradores, setCompradores] = useState<User[]>([]);
   const [controladores, setControladores] = useState<User[]>([]);
+  const [responsaveisTecnicos, setResponsaveisTecnicos] = useState<User[]>([]);
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [loading, setLoading] = useState(false);
   
@@ -94,37 +96,35 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
     resolver: zodResolver(catalogoSchema),
     defaultValues: item ? {
       unidade: item.unidade || "",
-      marca: item.marca || "",
-      embalagem: item.embalagem || "",
+      descritivo_detalhado: item.descritivo_detalhado || "",
       codigo_master: item.codigo_master || "",
       codigo_aghu_hu: item.codigo_aghu_hu || "",
       codigo_aghu_meac: item.codigo_aghu_meac || "",
       catmat: item.catmat || "",
       codigo_ebserh: item.codigo_ebserh || "",
-      descricao: item.descricao || "",
+      descritivo_resumido: item.descritivo_resumido || "",
       apresentacao: item.apresentacao || "",
       classificacao_xyz: item.classificacao_xyz || "",
+      responsavel_tecnico: item.responsavel_tecnico || "",
+      responsavel_tecnico_id: String(item.responsavel_tecnico_id || ""),
       comprador_id: String(item.comprador_id || ""),
       controlador_id: String(item.controlador_id || ""),
-      processo_id: item.processo_id ? String(item.processo_id) : "none",
-      processo_ids_adicionais: item.processos_adicionais ? item.processos_adicionais.map(p => p.id.toString()) : [],
       observacao: item.observacao || "",
     } : {
       unidade: "",
-      marca: "",
-      embalagem: "",
+      descritivo_detalhado: "",
       codigo_master: "",
       codigo_aghu_hu: "",
       codigo_aghu_meac: "",
       catmat: "",
       codigo_ebserh: "",
-      descricao: "",
+      descritivo_resumido: "",
       apresentacao: "",
       classificacao_xyz: "",
+      responsavel_tecnico: "",
+      responsavel_tecnico_id: "",
       comprador_id: "",
       controlador_id: "",
-      processo_id: "none",
-      processo_ids_adicionais: [],
       observacao: "",
     },
   });
@@ -146,38 +146,31 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
   const fetchData = async () => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const { api } = await import('@/lib/api');
       
       // Buscar todos os usuários (compradores e controladores virão da mesma API)
-      const usersResponse = await fetch(`${baseUrl}/api/v1/users?limit=1000`);
-      if (usersResponse.ok) {
-        const users = await usersResponse.json();
-        
-        // Filtrar usuários por perfil (assumindo que existe uma flag para identificar)
-        // Por enquanto, vamos mostrar todos os usuários ativos para ambos os campos
-        const activeUsers = users.filter((user: any) => user.is_active);
-        setCompradores(activeUsers.map((user: any) => ({
-          id: user.id.toString(),
-          nome: user.nome,
-          email: user.email
-        })));
-        setControladores(activeUsers.map((user: any) => ({
-          id: user.id.toString(), 
-          nome: user.nome,
-          email: user.email
-        })));
-      }
+      const users = await api.get('/api/v1/users?limit=1000');
+      
+      // Filtrar usuários por perfil (assumindo que existe uma flag para identificar)
+      // Por enquanto, vamos mostrar todos os usuários ativos para ambos os campos
+      const activeUsers = users.filter((user: any) => user.is_active);
+      const userList = activeUsers.map((user: any) => ({
+        id: user.id.toString(),
+        nome: user.nome,
+        email: user.email
+      }));
+      
+      setCompradores(userList);
+      setControladores(userList);
+      setResponsaveisTecnicos(userList);
 
       // Buscar processos de aquisição
-      const processosResponse = await fetch(`${baseUrl}/api/v1/processos?limit=1000`);
-      if (processosResponse.ok) {
-        const processos = await processosResponse.json();
-        setProcessos(processos.map((processo: any) => ({
-          id: processo.id.toString(),
-          numero: processo.numero_processo_planejamento,
-          descricao: processo.objeto_aquisicao
-        })));
-      }
+      const processos = await api.get('/api/v1/processos?limit=1000');
+      setProcessos(processos.map((processo: any) => ({
+        id: processo.id.toString(),
+        numero: processo.numero_processo_planejamento,
+        descricao: processo.objeto_aquisicao
+      })));
     } catch (error) {
       console.error('Erro ao buscar dados do backend:', error);
       console.log('Usando dados mockados para desenvolvimento...');
@@ -193,6 +186,11 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
         { id: "5", nome: "Carlos Ferreira", email: "carlos@example.com" },
         { id: "6", nome: "Lucia Almeida", email: "lucia@example.com" },
       ]);
+      setResponsaveisTecnicos([
+        { id: "7", nome: "Roberto Lima", email: "roberto@example.com" },
+        { id: "8", nome: "Patricia Souza", email: "patricia@example.com" },
+        { id: "9", nome: "Fernando Dias", email: "fernando@example.com" },
+      ]);
       setProcessos([
         { id: "1", numero: "23076.001234/2024-01", descricao: "Aquisição de Material Hospitalar" },
         { id: "2", numero: "23076.005678/2024-02", descricao: "Compra de Medicamentos" },
@@ -203,22 +201,74 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
     }
   };
 
-  function onSubmit(values: CatalogoFormValues) {
-    // Converter "none" para string vazia para processo_id
-    const processedValues = {
-      ...values,
-      processo_id: values.processo_id === "none" ? "" : values.processo_id
-    };
-    
-    if (mode === "edit") {
-      console.log("Editando item:", { ...processedValues, id: item?.id });
-      // TODO: Implementar atualização via API
-    } else {
-      console.log("Criando novo item:", processedValues);
-      // TODO: Implementar criação via API
+  async function onSubmit(values: CatalogoFormValues) {
+    try {
+      setLoading(true);
+      
+      // Preparar dados para envio - converter IDs string para number e limpar campos vazios
+      const submitData: any = {
+        unidade: values.unidade,
+        codigo_master: values.codigo_master,
+        descritivo_resumido: values.descritivo_resumido,
+        // Campos opcionais - enviar apenas se preenchidos
+        descritivo_detalhado: values.descritivo_detalhado || undefined,
+        codigo_aghu_hu: values.codigo_aghu_hu || undefined,
+        codigo_aghu_meac: values.codigo_aghu_meac || undefined,
+        catmat: values.catmat || undefined,
+        codigo_ebserh: values.codigo_ebserh || undefined,
+        apresentacao: values.apresentacao || undefined,
+        classificacao_xyz: values.classificacao_xyz || undefined,
+        responsavel_tecnico: values.responsavel_tecnico || undefined,
+        observacao: values.observacao || undefined,
+        // Converter IDs de string para number
+        comprador_id: values.comprador_id ? parseInt(values.comprador_id) : undefined,
+        controlador_id: values.controlador_id ? parseInt(values.controlador_id) : undefined,
+        // ID do responsável técnico
+        responsavel_tecnico_id: values.responsavel_tecnico_id ? parseInt(values.responsavel_tecnico_id) : undefined,
+      };
+      
+      // Remover campos undefined do objeto
+      Object.keys(submitData).forEach(key => {
+        if (submitData[key] === undefined) {
+          delete submitData[key];
+        }
+      });
+      
+      if (mode === "edit" && item?.id) {
+        console.log("Editando item:", { ...submitData, id: item.id });
+        const response = await api.patch(`/api/v1/catalogo/${item.id}`, submitData);
+        console.log('Item editado com sucesso:', response);
+        
+        // Fechar modal
+        setOpen(false);
+        
+        // Chamar callback para atualizar a lista se existir
+        if (onSuccess) {
+          onSuccess();
+        }
+      } else {
+        console.log("Criando novo item:", submitData);
+        const response = await api.post('/api/v1/catalogo/', submitData);
+        console.log('Item criado com sucesso:', response);
+        
+        // Resetar formulário e fechar modal
+        form.reset();
+        setOpen(false);
+        
+        // Chamar callback para atualizar a lista se existir
+        if (onSuccess) {
+          onSuccess();
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('Erro ao salvar item:', error);
+      // Mostrar erro mais amigável para o usuário
+      const errorMessage = error?.message || 'Erro ao salvar item. Verifique os dados e tente novamente.';
+      alert(`Erro: ${errorMessage}`);
+    } finally {
+      setLoading(false);
     }
-    form.reset();
-    setOpen(false);
   }
 
   const handleEdit = () => {
@@ -229,20 +279,19 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
     if (item) {
       form.reset({
         unidade: item.unidade || "",
-        marca: item.marca || "",
-        embalagem: item.embalagem || "",
+        descritivo_detalhado: item.descritivo_detalhado || "",
         codigo_master: item.codigo_master || "",
         codigo_aghu_hu: item.codigo_aghu_hu || "",
         codigo_aghu_meac: item.codigo_aghu_meac || "",
         catmat: item.catmat || "",
         codigo_ebserh: item.codigo_ebserh || "",
-        descricao: item.descricao || "",
+        descritivo_resumido: item.descritivo_resumido || "",
         apresentacao: item.apresentacao || "",
         classificacao_xyz: item.classificacao_xyz || "",
+        responsavel_tecnico: item.responsavel_tecnico || "",
+        responsavel_tecnico_id: String(item.responsavel_tecnico_id || ""),
         comprador_id: String(item.comprador_id || ""),
         controlador_id: String(item.controlador_id || ""),
-        processo_id: item.processo_id ? String(item.processo_id) : "none",
-        processo_ids_adicionais: item.processos_adicionais ? item.processos_adicionais.map(p => p.id.toString()) : [],
         observacao: item.observacao || "",
       });
     }
@@ -259,7 +308,7 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
           </DialogTitle>
           <DialogDescription>
             {mode === "edit" 
-              ? `Editando item: ${item?.codigo_master} - ${item?.descricao}`
+              ? `Editando item: ${item?.codigo_master} - ${item?.descritivo_resumido}`
               : "Preencha os campos abaixo para adicionar um novo item ao catálogo de itens do SAFS"}
           </DialogDescription>
         </DialogHeader>
@@ -353,71 +402,52 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
 
                       <FormField
                         control={form.control}
-                        name="descricao"
+                        name="descritivo_resumido"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-sm font-semibold">
-                              Descrição <span className="text-red-500">*</span>
+                              Descritivo Resumido <span className="text-red-500">*</span>
                             </FormLabel>
                             <FormControl>
                               <Textarea 
-                                placeholder="Descreva detalhadamente o item..." 
-                                className="min-h-[100px] resize-none focus:ring-2 focus:ring-primary"
+                                placeholder="Descreva resumidamente o item..." 
+                                className="min-h-[80px] resize-none focus:ring-2 focus:ring-primary"
                                 {...field} 
+                                disabled={!isEditing}
                               />
                             </FormControl>
                             <FormDescription className="text-xs">
-                              Descrição completa e detalhada do item
+                              Descrição resumida do item (máx. 300 caracteres)
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="marca"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm font-semibold">Marca</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="Ex: 3M, Johnson & Johnson" 
-                                  className="focus:ring-2 focus:ring-primary"
-                                  {...field} 
-                                  disabled={!isEditing}
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                Marca do produto
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                      <FormField
+                        control={form.control}
+                        name="descritivo_detalhado"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">
+                              Descritivo Detalhado
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="Descreva detalhadamente o item (opcional)..." 
+                                className="min-h-[120px] resize-none focus:ring-2 focus:ring-primary"
+                                {...field} 
+                                disabled={!isEditing}
+                              />
+                            </FormControl>
+                            <FormDescription className="text-xs">
+                              Descrição completa e detalhada do item (opcional - máx. 4000 caracteres)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                        <FormField
-                          control={form.control}
-                          name="embalagem"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm font-semibold">Embalagem</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="Ex: Caixa, Pacote, Frasco" 
-                                  className="focus:ring-2 focus:ring-primary"
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                Tipo de embalagem do produto
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
 
                       <FormField
                         control={form.control}
@@ -565,17 +595,17 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
                 <TabsContent value="gestao" className="space-y-6 mt-6">
                   <Card>
                     <CardContent className="pt-6 space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="flex flex-col lg:flex-row lg:space-x-8 space-y-4 lg:space-y-0">
                         <FormField
                           control={form.control}
                           name="comprador_id"
                           render={({ field }) => (
-                            <FormItem>
+                            <FormItem className="flex-1">
                               <FormLabel className="text-sm font-semibold">Comprador</FormLabel>
                               <Select 
                                 onValueChange={field.onChange} 
                                 defaultValue={field.value}
-                                disabled={loading}
+                                disabled={loading || !isEditing}
                               >
                                 <FormControl>
                                   <SelectTrigger className="focus:ring-2 focus:ring-primary">
@@ -602,12 +632,12 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
                           control={form.control}
                           name="controlador_id"
                           render={({ field }) => (
-                            <FormItem>
+                            <FormItem className="flex-1">
                               <FormLabel className="text-sm font-semibold">Controlador</FormLabel>
                               <Select 
                                 onValueChange={field.onChange} 
                                 defaultValue={field.value}
-                                disabled={loading}
+                                disabled={loading || !isEditing}
                               >
                                 <FormControl>
                                   <SelectTrigger className="focus:ring-2 focus:ring-primary">
@@ -632,10 +662,10 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
 
                         <FormField
                           control={form.control}
-                          name="processo_id"
+                          name="responsavel_tecnico_id"
                           render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm font-semibold">Processo Principal</FormLabel>
+                            <FormItem className="flex-1">
+                              <FormLabel className="text-sm font-semibold">Responsável Técnico</FormLabel>
                               <Select 
                                 onValueChange={field.onChange} 
                                 defaultValue={field.value}
@@ -643,85 +673,27 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
                               >
                                 <FormControl>
                                   <SelectTrigger className="focus:ring-2 focus:ring-primary">
-                                    <SelectValue placeholder={loading ? "Carregando..." : "Selecione o processo principal"} />
+                                    <SelectValue placeholder={loading ? "Carregando..." : "Selecione o responsável técnico"} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="none">Nenhum processo</SelectItem>
-                                  {processos.map((processo) => (
-                                    <SelectItem key={processo.id} value={processo.id}>
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{processo.numero}</span>
-                                        {processo.descricao && (
-                                          <span className="text-xs text-muted-foreground">{processo.descricao}</span>
-                                        )}
-                                      </div>
+                                  {responsaveisTecnicos.map((responsavel) => (
+                                    <SelectItem key={responsavel.id} value={responsavel.id}>
+                                      {responsavel.nome}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                               <FormDescription className="text-xs">
-                                Processo principal de aquisição (compatibilidade com sistema atual)
+                                Responsável técnico pelo item
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="processo_ids_adicionais"
-                          render={({ field }) => (
-                            <FormItem className="col-span-2">
-                              <FormLabel className="text-sm font-semibold">Processos Adicionais</FormLabel>
-                              <FormControl>
-                                <div className="max-h-40 overflow-y-auto border rounded-md p-3 space-y-2">
-                                  {loading ? (
-                                    <div className="text-sm text-muted-foreground">Carregando processos...</div>
-                                  ) : processos.length === 0 ? (
-                                    <div className="text-sm text-muted-foreground">Nenhum processo encontrado</div>
-                                  ) : (
-                                    processos.map((processo) => (
-                                      <div key={processo.id} className="flex items-start space-x-2">
-                                        <Checkbox
-                                          id={processo.id}
-                                          checked={field.value?.includes(processo.id) || false}
-                                          onCheckedChange={(checked) => {
-                                            const currentValue = field.value || [];
-                                            if (checked) {
-                                              field.onChange([...currentValue, processo.id]);
-                                            } else {
-                                              field.onChange(currentValue.filter((id) => id !== processo.id));
-                                            }
-                                          }}
-                                          disabled={!isEditing}
-                                        />
-                                        <div className="grid gap-1.5 leading-none">
-                                          <label
-                                            htmlFor={processo.id}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                          >
-                                            {processo.numero}
-                                          </label>
-                                          {processo.descricao && (
-                                            <p className="text-xs text-muted-foreground">
-                                              {processo.descricao}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                Selecione um ou mais processos de aquisição
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                       </div>
+
 
                       <FormField
                         control={form.control}
@@ -736,10 +708,8 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
                                 {...field} 
                               />
                             </FormControl>
-                            <FormDescription className="text-xs">
-                              Informações complementares relevantes
-                            </FormDescription>
-                            <FormMessage />
+                            
+                            
                           </FormItem>
                         )}
                       />
@@ -794,8 +764,14 @@ export function CatalogoFormDialog({ trigger, item, mode = "create" }: CatalogoF
                   <Button 
                     type="submit"
                     className="bg-primary hover:bg-primary/90"
+                    disabled={loading}
                   >
-                    {mode === "edit" ? "Salvar Alterações" : "Salvar Item"}
+                    {loading 
+                      ? "Salvando..." 
+                      : mode === "edit" 
+                        ? "Salvar Alterações" 
+                        : "Salvar Item"
+                    }
                   </Button>
                 </>
               )}

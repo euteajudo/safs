@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Annotated
+from typing import List, Annotated, Dict, Any
 from sqlalchemy.exc import IntegrityError
 
 from app_catalogo.models.catalogo import ItensCatalogo  
@@ -144,29 +144,38 @@ async def get_item_by_codigo_master(
 @router.patch(
     "/{item_id}", 
     response_model=catalogo_schemas.ItemCatalogoRead,
+    status_code=status.HTTP_200_OK,
     summary="Atualiza um item do catálogo"
 )
 async def update_item(
     item_id: int,
-    item_update: catalogo_schemas.ItemCatalogoUpdate,
+    item_data: catalogo_schemas.ItemCatalogoUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(security.get_current_active_user)]
 ):
     """Atualiza parcialmente os dados de um item do catálogo."""
-    logger.info(f"Usuário {current_user.email} tentando atualizar o item ID {item_id}")
+    logger.info(f"Usuário {current_user.email} atualizando item ID {item_id}")
+    
     repo = ItemCatalogoRepository(db)
-    update_data = item_update.model_dump(exclude_unset=True)
-    if not update_data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum dado fornecido para atualização.")
+    item = await repo.pesquisar_item_por_id(item_id)
     
-    updated_item = await repo.atualizar_item(item_id, update_data)
-    
-    if updated_item is None:
+    if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Item não encontrado ou falha na atualização"
+            detail="Item não encontrado"
         )
-    return updated_item
+    
+    # Atualiza o item
+    item_atualizado = await repo.atualizar_item(item_id, item_data.model_dump(exclude_unset=True))
+    
+    if not item_atualizado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Falha ao atualizar item"
+        )
+    
+    logger.info(f"Item ID {item_id} atualizado com sucesso")
+    return item_atualizado
 
 # --- MÉTODO DELETE ---
 
@@ -193,3 +202,99 @@ async def delete_item(
             detail="Item não encontrado para remoção"
         )
     return None
+
+
+# =============================================================================
+# ENDPOINTS PARA RELACIONAMENTOS MANY-TO-MANY (Nova funcionalidade)
+# =============================================================================
+
+@router.post(
+    "/{item_id}/compradores",
+    response_model=catalogo_schemas.ItemCatalogoRead,
+    status_code=status.HTTP_200_OK,
+    summary="Associar compradores a um item"
+)
+async def associar_compradores(
+    item_id: int,
+    comprador_ids: List[int],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(security.get_current_active_user)]
+):
+    """Associa múltiplos compradores a um item do catálogo."""
+    logger.info(f"Usuário {current_user.email} associando compradores {comprador_ids} ao item {item_id}")
+    
+    from app_catalogo.db_repository.op_db_catalogo import associar_compradores_item
+    item = await associar_compradores_item(db, item_id, comprador_ids)
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item não encontrado"
+        )
+    
+    return item
+
+
+@router.post(
+    "/{item_id}/controladores",
+    response_model=catalogo_schemas.ItemCatalogoRead,
+    status_code=status.HTTP_200_OK,
+    summary="Associar controladores a um item"
+)
+async def associar_controladores(
+    item_id: int,
+    controlador_ids: List[int],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(security.get_current_active_user)]
+):
+    """Associa múltiplos controladores a um item do catálogo."""
+    logger.info(f"Usuário {current_user.email} associando controladores {controlador_ids} ao item {item_id}")
+    
+    from app_catalogo.db_repository.op_db_catalogo import associar_controladores_item
+    item = await associar_controladores_item(db, item_id, controlador_ids)
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item não encontrado"
+        )
+    
+    return item
+
+
+@router.get(
+    "/{item_id}/compradores",
+    response_model=List[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Listar compradores de um item"
+)
+async def listar_compradores(
+    item_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Lista todos os compradores associados a um item."""
+    logger.info(f"Listando compradores do item {item_id}")
+    
+    from app_catalogo.db_repository.op_db_catalogo import listar_compradores_item
+    compradores = await listar_compradores_item(db, item_id)
+    
+    return compradores
+
+
+@router.get(
+    "/{item_id}/controladores",
+    response_model=List[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Listar controladores de um item"
+)
+async def listar_controladores(
+    item_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Lista todos os controladores associados a um item."""
+    logger.info(f"Listando controladores do item {item_id}")
+    
+    from app_catalogo.db_repository.op_db_catalogo import listar_controladores_item
+    controladores = await listar_controladores_item(db, item_id)
+    
+    return controladores
