@@ -8,8 +8,38 @@
       "Bash(git rm:*)",
       "Bash(rm:*)",
       "Bash(git push:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(npm install)",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd.exe /c \"C:\\Users\\abimael.souza\\Desktop\\APLICATIVOS\\safs\\run_frontend.bat\")",
+      "Bash(npm.cmd run dev)",
+      "Bash(alembic revision --autogenerate -m \"adicionar_relacionamento_responsaveis_tecnicos\")",
+      "Bash(python:*)",
+      "Bash(alembic current:*)",
+      "Bash(backend\\backend\\venv\\Scripts\\alembic.exe --help)",
+      "Bash(run_alembic.bat)",
+      "Bash(\"C:\\Python311\\python.exe\" alembic_runner.py)",
+      "Bash(alembic revision:*)",
+      "Bash(\"C:\\Python311\\python.exe\" -m alembic revision --autogenerate -m \"remover_campo_processo_id_e_is_responsavel_tecnico\")",
+      "Bash(cmd.exe /c \"C:\\Users\\abimael.souza\\Desktop\\APLICATIVOS\\safs\\execute_migration.py\")",
+      "Bash(cmd.exe:*)",
+      "Bash(\"C:\\Python311\\python.exe\" \"C:\\Users\\abimael.souza\\Desktop\\APLICATIVOS\\safs\\execute_migration.py\")",
+      "Bash(\"C:\\Python311\\python.exe\" \"C:\\Users\\abimael.souza\\Desktop\\APLICATIVOS\\safs\\backend\\backend\\main.py\")",
+      "Bash(start_backend.bat)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(\"C:\\Python311\\python.exe\" -m alembic revision --autogenerate -m \"adicionar_campo_foto_url_usuarios\")",
+      "Bash(\"C:\\Python311\\python.exe\" main.py)",
+      "Bash(uvicorn:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic:*)",
+      "Bash(npm run lint)",
+      "Bash(\"C:\\Python311\\python.exe\" -m alembic current)",
+      "Bash(\"C:\\Python311\\python.exe\" -m alembic revision --autogenerate -m \"adicionar_tabela_responsaveis_tecnicos_e_foreign_key\")"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "C:\\c\\Users\\abimael.souza\\Desktop\\APLICATIVOS\\safs\\backend"
+    ]
   }
 }

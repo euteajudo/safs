@@ -2,7 +2,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Annotated
+from typing import List, Annotated, Dict, Any
 from sqlalchemy.exc import IntegrityError
 
 from app_catalogo.models.controle_processo import PlanejamentoAquisicao
@@ -65,7 +65,7 @@ async def get_processos_stats(
 
 
 @router.post(
-    "/", 
+    "", 
     response_model=processo_schemas.ProcessoRead, 
     status_code=status.HTTP_201_CREATED,
     summary="Cria um novo processo de planejamento"
@@ -90,7 +90,7 @@ async def create_processo(
         )
 
 @router.get(
-    "/", 
+    "", 
     response_model=List[processo_schemas.ProcessoRead],
     summary="Lista todos os processos de forma paginada"
 )
@@ -205,4 +205,74 @@ async def list_processos_by_unidade(
     processos = await repo.pesquisar_processos_por_unidade(unidade)
     logger.debug(f"Retornando {len(processos)} processos.")
     return processos
+
+
+# =============================================================================
+# ENDPOINTS PARA RELACIONAMENTOS MANY-TO-MANY (Nova funcionalidade)
+# =============================================================================
+
+@router.post(
+    "/{processo_id}/compradores",
+    response_model=processo_schemas.ProcessoRead,
+    status_code=status.HTTP_200_OK,
+    summary="Associar compradores a um processo"
+)
+async def associar_compradores_processo(
+    processo_id: int,
+    comprador_ids: List[int],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(security.get_current_active_user)]
+):
+    """Associa múltiplos compradores a um processo de aquisição."""
+    logger.info(f"Usuário {current_user.email} associando compradores {comprador_ids} ao processo {processo_id}")
     
+    from app_catalogo.db_repository.op_db_planejamento import associar_compradores_processo
+    processo = await associar_compradores_processo(db, processo_id, comprador_ids)
+    
+    if not processo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Processo não encontrado"
+        )
+    
+    return processo
+
+
+@router.get(
+    "/{processo_id}/compradores",
+    response_model=List[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Listar compradores de um processo"
+)
+async def listar_compradores_processo(
+    processo_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Lista todos os compradores associados a um processo."""
+    logger.info(f"Listando compradores do processo {processo_id}")
+    
+    from app_catalogo.db_repository.op_db_planejamento import listar_compradores_processo
+    compradores = await listar_compradores_processo(db, processo_id)
+    
+    return compradores
+
+
+@router.get(
+    "/comprador/{comprador_id}",
+    response_model=List[processo_schemas.ProcessoRead],
+    status_code=status.HTTP_200_OK,
+    summary="Listar processos de um comprador"
+)
+async def listar_processos_comprador(
+    comprador_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: int = 0,
+    limit: int = 100
+):
+    """Lista todos os processos associados a um comprador específico."""
+    logger.info(f"Listando processos do comprador {comprador_id}")
+    
+    from app_catalogo.db_repository.op_db_planejamento import listar_processos_por_comprador
+    processos = await listar_processos_por_comprador(db, comprador_id, skip, limit)
+    
+    return processos

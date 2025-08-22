@@ -8,6 +8,7 @@ class UserBase(BaseModel):
     nome: str = Field(..., min_length=1, max_length=100, description="Nome completo do usuário")
     username: str = Field(..., min_length=3, max_length=50, description="Nome de usuário único")
     email: EmailStr = Field(..., description="Email do usuário")
+    foto_url: Optional[str] = Field(None, max_length=500, description="URL da foto do usuário")
     is_active: bool = Field(True, description="Se o usuário está ativo")
     is_superuser: bool = Field(False, description="Se o usuário é superusuário")
     is_chefe_unidade: bool = Field(False, description="Se o usuário é chefe de unidade")
@@ -44,6 +45,7 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     username: Optional[str] = None
     nome: Optional[str] = None
+    foto_url: Optional[str] = None
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
     is_chefe_unidade: Optional[bool] = None
@@ -70,6 +72,7 @@ class UserCreateInternal(BaseModel):
     username: str
     email: str
     senha: str
+    foto_url: Optional[str] = None
     is_active: bool = True
     is_superuser: bool = False
     is_chefe_unidade: bool = False

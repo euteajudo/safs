@@ -55,6 +55,11 @@ async def get_current_active_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Verificar se o token é None ou vazio
+    if not token:
+        raise credentials_exception
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")

@@ -194,7 +194,7 @@ export default function PerfilPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold text-primary">
-                          {Math.floor(Math.random() * 100) + 10}
+                          42
                         </div>
                         <p className="text-xs text-muted-foreground">
                           Itens sob sua responsabilidade
@@ -208,7 +208,7 @@ export default function PerfilPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold text-primary">
-                          {Math.floor(Math.random() * 25) + 5}
+                          12
                         </div>
                         <p className="text-xs text-muted-foreground">
                           Processos em andamento

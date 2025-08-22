@@ -41,11 +41,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IconUpload, IconUser } from "@tabler/icons-react";
 import { useCurrentUser } from "@/contexts/auth-context";
 import { canCreateUserForUnit, getAssignableRoles, validateRoleAssignment } from "@/lib/permissions";
+import { api } from "@/lib/api";
 
 const usuarioSchema = z.object({
-  unidade: z.enum(["ULOG", "UACE", "UPDE", "SAFS"], {
-    required_error: "Selecione uma unidade",
-  }),
+  unidade: z.enum(["ULOG", "UACE", "UPDE", "SAFS"]),
   nome: z.string().min(1, "Nome é obrigatório").max(100),
   username: z.string().min(3, "Username deve ter pelo menos 3 caracteres").max(50),
   email: z.string().email("Email inválido"),
@@ -64,9 +63,7 @@ const usuarioSchema = z.object({
 
 // Schema para edição (sem senha obrigatória)
 const usuarioEditSchema = z.object({
-  unidade: z.enum(["ULOG", "UACE", "UPDE", "SAFS"], {
-    required_error: "Selecione uma unidade",
-  }),
+  unidade: z.enum(["ULOG", "UACE", "UPDE", "SAFS"]),
   nome: z.string().min(1, "Nome é obrigatório").max(100),
   username: z.string().min(3, "Username deve ter pelo menos 3 caracteres").max(50),
   email: z.string().email("Email inválido"),
@@ -96,9 +93,10 @@ interface UsuarioFormDialogProps {
   trigger: React.ReactNode;
   user?: UsuarioEditFormValues & { id?: number; unidade?: string; foto_url?: string };
   mode?: "create" | "edit";
+  onSuccess?: () => void; // Callback chamado após sucesso na operação
 }
 
-export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFormDialogProps) {
+export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }: UsuarioFormDialogProps) {
   const [open, setOpen] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(mode === "create");
   const [loading, setLoading] = useState(false);
@@ -151,7 +149,7 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
     }
   }, [open, mode]);
 
-  function onSubmit(values: UsuarioFormValues | UsuarioEditFormValues) {
+  async function onSubmit(values: UsuarioFormValues | UsuarioEditFormValues) {
     // Validar se as permissões selecionadas são válidas
     const selectedRoles = {
       is_superuser: values.is_superuser,
@@ -163,22 +161,41 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
     const validation = validateRoleAssignment(currentUser, selectedRoles);
     
     if (!validation.isValid) {
-      alert(`Erro de permissão: ${validation.errors.join(', ')}`);
+      const errorMessage = validation.errors ? validation.errors.join(', ') : 'Erro de validação de permissões';
+      alert(`Erro de permissão: ${errorMessage}`);
       return;
     }
     
     // Preparar dados para envio (remover confirmar_senha)
     const { confirmar_senha, ...userData } = values;
     
-    if (mode === "edit") {
-      console.log("Editando usuário:", { ...userData, id: user?.id });
-      // TODO: Implementar atualização via API
-    } else {
-      console.log("Criando novo usuário:", userData);
-      // TODO: Implementar criação via API
+    try {
+      setLoading(true);
+      
+      if (mode === "edit") {
+        console.log("Editando usuário:", { ...userData, id: user?.id });
+        await api.put(`/v1/users/${user?.id}`, userData);
+        alert('Usuário editado com sucesso!');
+      } else {
+        console.log("Criando novo usuário:", userData);
+        await api.post('/v1/users/', userData);
+        alert('Usuário criado com sucesso!');
+      }
+      
+      form.reset();
+      setOpen(false);
+      
+      // Chamar callback de sucesso se fornecido
+      if (onSuccess) {
+        onSuccess();
+      }
+      
+    } catch (error) {
+      console.error('Erro ao salvar usuário:', error);
+      alert(`Erro ao ${mode === "edit" ? "editar" : "criar"} usuário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setLoading(false);
     }
-    form.reset();
-    setOpen(false);
   }
 
   const handleEdit = () => {
@@ -223,9 +240,9 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
   const getAvailableUnits = () => {
     const allUnits = [
       { value: "ULOG", label: "ULOG - Unidade de Logística" },
-      { value: "UACE", label: "UACE - Unidade de Acompanhamento e Controle" },
-      { value: "UPDE", label: "UPDE - Unidade de Planejamento e Desenvolvimento" },
-      { value: "SAFS", label: "SAFS - Superintendência de Administração" },
+      { value: "UACE", label: "UACE - Unidade de Acompanhamento e Controle de Estoque" },
+      { value: "UPDE", label: "UPDE - Unidade de Planejamento e Dimensionamento de Estoque" },
+      { value: "SAFS", label: "SAFS - Setor de Abastecimento Farmacêutico e Suprimentos" },
     ];
 
     // Superusuário pode criar para todas as unidades
@@ -236,6 +253,11 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
     // Chefe de unidade só pode criar para sua própria unidade
     if (currentUser?.is_chefe_unidade) {
       return allUnits.filter(unit => unit.value === currentUser.unidade);
+    }
+
+    // Chefe de setor só pode atribuir perfil de funcionário, Chefe de unidade e responsável técnico
+    if (currentUser?.is_chefe_setor) {
+      return allUnits.filter(unit => unit.value === currentUser.unidade || unit.value === "ULOG" || unit.value === "UPDE" || unit.value === "UACE" || unit.value === "SAFS");
     }
 
     return allUnits;
@@ -506,7 +528,7 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
                         <div className="space-y-4">
                           <h3 className="text-sm font-semibold text-gray-900">Níveis de Acesso</h3>
                           
-                          {assignableRoles.includes('is_superuser') && (
+                          {assignableRoles.includes('superuser') && (
                             <FormField
                               control={form.control}
                               name="is_superuser"
@@ -532,7 +554,7 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
                             />
                           )}
 
-                          {assignableRoles.includes('is_chefe_unidade') && (
+                          {assignableRoles.includes('chefe_unidade') && (
                             <FormField
                               control={form.control}
                               name="is_chefe_unidade"
@@ -558,7 +580,7 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
                             />
                           )}
 
-                          {assignableRoles.includes('is_chefe_setor') && (
+                          {assignableRoles.includes('chefe_setor') && (
                             <FormField
                               control={form.control}
                               name="is_chefe_setor"
@@ -584,7 +606,7 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
                             />
                           )}
 
-                          {assignableRoles.includes('is_funcionario') && (
+                          {assignableRoles.includes('funcionario') && (
                             <FormField
                               control={form.control}
                               name="is_funcionario"
@@ -668,8 +690,9 @@ export function UsuarioFormDialog({ trigger, user, mode = "create" }: UsuarioFor
                   <Button 
                     type="submit"
                     className="bg-primary hover:bg-primary/90"
+                    disabled={loading}
                   >
-                    {mode === "edit" ? "Salvar Alterações" : "Criar Usuário"}
+                    {loading ? "Salvando..." : (mode === "edit" ? "Salvar Alterações" : "Criar Usuário")}
                   </Button>
                 </>
               )}

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface Usuario {
   id: number;
@@ -22,33 +23,81 @@ interface AuthContextType {
   user: Usuario | null;
   setUser: (user: Usuario | null) => void;
   isLoading: boolean;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Mock user data - em produção isso viria da API/localStorage/cookies
-  // TESTE: Configurado como SUPERUSUÁRIO para acesso completo ao sistema
-  const [user, setUser] = useState<Usuario | null>({
-    id: 1,
-    nome: "João Silva Santos - Superintendente",
-    username: "joao.silva", 
-    email: "joao.silva@safs.gov.br",
-    unidade: "SAFS", // Superusuário da SAFS
-    foto_url: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-    is_active: true,
-    is_superuser: true, // SUPERUSUÁRIO - pode fazer tudo
-    is_chefe_unidade: true, // Também é chefe de unidade
-    is_chefe_setor: false,
-    is_funcionario: false,
-    created_at: "2024-01-15T10:30:00Z",
-    updated_at: "2024-02-10T14:22:00Z"
-  });
-  
-  const [isLoading] = useState(false);
+  const [user, setUser] = useState<Usuario | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  // Verificar se há um usuário logado ao carregar a aplicação
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
+      if (token && savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          setUser(userData);
+        } catch (error) {
+          console.error('Erro ao parser dados do usuário:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const { loginApi } = await import('@/lib/api');
+      const data = await loginApi(username, password);
+      
+      // Salvar no localStorage
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Também salvar o token em cookies para o middleware
+      document.cookie = `token=${data.access_token}; path=/; max-age=86400`; // 24 horas
+      
+      setUser(data.user);
+      
+      return true;
+    } catch (error) {
+      console.error('Erro no login:', error);
+      return false;
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    // Remover cookie também
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    setUser(null);
+    router.push('/login');
+  };
+
+  const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, setUser, isLoading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      setUser, 
+      isLoading, 
+      login, 
+      logout, 
+      isAuthenticated 
+    }}>
       {children}
     </AuthContext.Provider>
   );

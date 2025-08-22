@@ -1,0 +1,5 @@
+[tool.python]
+path = ["."]
+
+[build-system]
+requires = ["setuptools", "wheel"]

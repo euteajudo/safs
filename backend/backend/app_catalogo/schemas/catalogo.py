@@ -17,7 +17,6 @@ class ItemCatalogoBase(BaseModel):
     codigo_ebserh: Optional[str] = Field(None, max_length=20, description="Código EBSERH")
     apresentacao: Optional[str] = Field(None, max_length=100, description="Apresentação do item")
     classificacao_xyz: Optional[str] = Field(None, max_length=10, description="Classificação XYZ")
-    responsavel_tecnico: Optional[str] = Field(None, max_length=100, description="Responsável técnico")
     observacao: Optional[str] = Field(None, max_length=255, description="Observações")
     # CAMPOS 1:N (mantidos para compatibilidade)
     comprador_id: Optional[int] = Field(None, description="ID do comprador")
@@ -29,7 +28,6 @@ class ItemCatalogoBase(BaseModel):
     # Campos para múltiplos usuários
     comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores")
     controlador_ids: Optional[List[int]] = Field(default=[], description="IDs dos controladores")
-    responsavel_tecnico_ids: Optional[List[int]] = Field(default=[], description="IDs dos responsáveis técnicos")
     
     @validator('codigo_master')
     def validate_codigo_master(cls, v):
@@ -57,12 +55,10 @@ class ItemCatalogoUpdate(BaseModel):
     codigo_ebserh: Optional[str] = None
     apresentacao: Optional[str] = None
     classificacao_xyz: Optional[str] = None
-    responsavel_tecnico: Optional[str] = None
     observacao: Optional[str] = None
     # CAMPOS 1:N (mantidos para compatibilidade)
     comprador_id: Optional[int] = None
     controlador_id: Optional[int] = None
-    responsavel_tecnico_id: Optional[int] = None
     
     # CAMPOS N:N (nova funcionalidade)
     # Campo para múltiplos processos
@@ -70,7 +66,7 @@ class ItemCatalogoUpdate(BaseModel):
     # Campos para múltiplos usuários
     comprador_ids: Optional[List[int]] = None
     controlador_ids: Optional[List[int]] = None
-    responsavel_tecnico_ids: Optional[List[int]] = None
+    # Campo adicional para compatibilidade com frontend
 
 class ItemCatalogoRead(ItemCatalogoBase):
     id: int
@@ -85,7 +81,6 @@ class ItemCatalogoRead(ItemCatalogoBase):
     # Relacionamentos com múltiplos usuários
     compradores: Optional[List[UserRead]] = []
     controladores: Optional[List[UserRead]] = []
-    responsaveis_tecnicos: Optional[List[UserRead]] = []
 
     class Config:
         from_attributes = True

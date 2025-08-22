@@ -68,13 +68,34 @@ async def criar_item(db: AsyncSession, item_data: dict) -> ItensCatalogo:
         IntegrityError: Se o item já existir.
         SQLAlchemyError: Se houver outro erro no banco de dados.
     """
-    logger.info(f"Tentando inserir item no catálogo: {item_data}")
+    logger.info(f"Tentando inserir item no catálogo com código: {item_data.get('codigo_master', 'sem código')}")
     
     # Separar processo_ids dos outros dados (relacionamentos N:N)
     processo_ids = item_data.pop('processo_ids', [])
     comprador_ids = item_data.pop('comprador_ids', [])
     controlador_ids = item_data.pop('controlador_ids', [])
-    responsavel_tecnico_ids = item_data.pop('responsavel_tecnico_ids', [])
+    
+    # CORREÇÃO: Processar campos 1:N do frontend e converter para N:N
+    comprador_id_singular = item_data.pop('comprador_id', None)
+    if comprador_id_singular is not None and not comprador_ids:
+        if isinstance(comprador_id_singular, (int, str)) and str(comprador_id_singular).strip():
+            try:
+                id_num = int(comprador_id_singular)
+                if id_num > 0:
+                    comprador_ids = [id_num]
+            except (ValueError, TypeError):
+                logger.warning(f"ID de comprador inválido: {comprador_id_singular}")
+    
+    controlador_id_singular = item_data.pop('controlador_id', None)
+    if controlador_id_singular is not None and not controlador_ids:
+        if isinstance(controlador_id_singular, (int, str)) and str(controlador_id_singular).strip():
+            try:
+                id_num = int(controlador_id_singular)
+                if id_num > 0:
+                    controlador_ids = [id_num]
+            except (ValueError, TypeError):
+                logger.warning(f"ID de controlador inválido: {controlador_id_singular}")
+    
     
     item = ItensCatalogo(**item_data)
     try:
@@ -90,7 +111,7 @@ async def criar_item(db: AsyncSession, item_data: dict) -> ItensCatalogo:
             item.processos_adicionais.extend(processos.scalars().all())
             
         # Adicionar usuários nos relacionamentos N:N se fornecidos
-        if comprador_ids or controlador_ids or responsavel_tecnico_ids:
+        if comprador_ids or controlador_ids:
             from app_catalogo.models.user import User
             
             if comprador_ids:
@@ -105,11 +126,6 @@ async def criar_item(db: AsyncSession, item_data: dict) -> ItensCatalogo:
                 )
                 item.controladores.extend(controladores.scalars().all())
                 
-            if responsavel_tecnico_ids:
-                responsaveis = await db.execute(
-                    select(User).where(User.id.in_(responsavel_tecnico_ids))
-                )
-                item.responsaveis_tecnicos.extend(responsaveis.scalars().all())
         
         await db.commit()
         await db.refresh(item)
@@ -152,7 +168,6 @@ async def listar_itens_paginados(
                 selectinload(ItensCatalogo.processos_adicionais),
                 selectinload(ItensCatalogo.compradores),
                 selectinload(ItensCatalogo.controladores),
-                selectinload(ItensCatalogo.responsaveis_tecnicos)
             )
             .offset(skip)
             .limit(limit)
@@ -204,9 +219,40 @@ async def atualizar_item(db: AsyncSession, item_id: int, updates: Dict[str, Any]
         processo_ids = updates.pop('processo_ids', None)
         comprador_ids = updates.pop('comprador_ids', None)
         controlador_ids = updates.pop('controlador_ids', None)
-        responsavel_tecnico_ids = updates.pop('responsavel_tecnico_ids', None)
         
-        # Atualizar campos normais (incluindo campos 1:N tradicionais)
+        # CORREÇÃO: Processar campos 1:N do frontend e converter para N:N
+        comprador_id_singular = updates.pop('comprador_id', None)
+        if comprador_id_singular is not None and comprador_ids is None:
+            if isinstance(comprador_id_singular, (int, str)) and str(comprador_id_singular).strip():
+                try:
+                    id_num = int(comprador_id_singular)
+                    if id_num > 0:
+                        comprador_ids = [id_num]
+                    else:
+                        comprador_ids = []
+                except (ValueError, TypeError):
+                    logger.warning(f"ID de comprador inválido: {comprador_id_singular}")
+                    comprador_ids = []
+            else:
+                comprador_ids = []
+        
+        controlador_id_singular = updates.pop('controlador_id', None)
+        if controlador_id_singular is not None and controlador_ids is None:
+            if isinstance(controlador_id_singular, (int, str)) and str(controlador_id_singular).strip():
+                try:
+                    id_num = int(controlador_id_singular)
+                    if id_num > 0:
+                        controlador_ids = [id_num]
+                    else:
+                        controlador_ids = []
+                except (ValueError, TypeError):
+                    logger.warning(f"ID de controlador inválido: {controlador_id_singular}")
+                    controlador_ids = []
+            else:
+                controlador_ids = []
+        
+        
+        # Atualizar campos normais (EXCLUINDO campos de relacionamento)
         for key, value in updates.items():
             setattr(item, key, value)
         
@@ -225,7 +271,7 @@ async def atualizar_item(db: AsyncSession, item_id: int, updates: Dict[str, Any]
                 item.processos_adicionais.extend(processos.scalars().all())
         
         # Atualizar usuários nos relacionamentos N:N se fornecidos
-        if any(ids is not None for ids in [comprador_ids, controlador_ids, responsavel_tecnico_ids]):
+        if any(ids is not None for ids in [comprador_ids, controlador_ids]):
             from app_catalogo.models.user import User
             
             if comprador_ids is not None:
@@ -244,16 +290,24 @@ async def atualizar_item(db: AsyncSession, item_id: int, updates: Dict[str, Any]
                     )
                     item.controladores.extend(controladores.scalars().all())
                     
-            if responsavel_tecnico_ids is not None:
-                item.responsaveis_tecnicos.clear()
-                if responsavel_tecnico_ids:
-                    responsaveis = await db.execute(
-                        select(User).where(User.id.in_(responsavel_tecnico_ids))
-                    )
-                    item.responsaveis_tecnicos.extend(responsaveis.scalars().all())
         
         await db.commit()
-        await db.refresh(item)
+        
+        # Recarregar o item com todos os relacionamentos
+        stmt = (
+            select(ItensCatalogo)
+            .options(
+                selectinload(ItensCatalogo.comprador),
+                selectinload(ItensCatalogo.controlador),
+                selectinload(ItensCatalogo.processos_adicionais),
+                selectinload(ItensCatalogo.compradores),
+                selectinload(ItensCatalogo.controladores),
+            )
+            .where(ItensCatalogo.id == item_id)
+        )
+        result = await db.execute(stmt)
+        item = result.scalar_one()
+        
         logger.info(f"Item {item_id} atualizado com sucesso.")
         return item
     except IntegrityError as e:
@@ -595,3 +649,5 @@ async def listar_controladores_item(
     except SQLAlchemyError as e:
         logger.error(f"Erro ao listar controladores do item {item_id}: {e}", exc_info=True)
         return []
+
+

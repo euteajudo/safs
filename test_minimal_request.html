@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Mínimo - Campo Responsável Técnico</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        input, select { margin: 5px; padding: 8px; width: 200px; }
+        .form-group { margin: 10px 0; }
+        label { display: inline-block; width: 150px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste Mínimo - Campo Responsável Técnico</h1>
+        
+        <div class="test-section info">
+            <h3>ℹ️ Informações do Sistema</h3>
+            <p><strong>URL Atual:</strong> <span id="currentUrl"></span></p>
+            <p><strong>API Base:</strong> <span id="apiBase"></span></p>
+            <p><strong>Status Backend:</strong> <span id="backendStatus">Verificando...</span></p>
+            <p><strong>Token:</strong> <span id="tokenStatus">Não verificado</span></p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔐 1. Login</h3>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="username" value="teste2">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="password" value="123456">
+            </div>
+            <button onclick="testLogin()">Fazer Login</button>
+            <div id="loginResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>👥 2. Buscar Usuários</h3>
+            <button onclick="fetchUsers()" id="fetchUsersBtn" disabled>Buscar Usuários</button>
+            <div id="usersResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 3. Teste Criação - SEM Responsável Técnico</h3>
+            <div class="form-group">
+                <label>Código Master:</label>
+                <input type="text" id="codigoMaster1" value="">
+            </div>
+            <button onclick="testCreateWithoutResponsavel()" id="createWithoutBtn" disabled>Criar Item SEM Responsável</button>
+            <div id="createWithoutResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 4. Teste Criação - COM Responsável Técnico</h3>
+            <div class="form-group">
+                <label>Código Master:</label>
+                <input type="text" id="codigoMaster2" value="">
+            </div>
+            <div class="form-group">
+                <label>Responsável:</label>
+                <select id="responsavelSelect">
+                    <option value="">Selecione um usuário...</option>
+                </select>
+            </div>
+            <button onclick="testCreateWithResponsavel()" id="createWithBtn" disabled>Criar Item COM Responsável</button>
+            <div id="createWithResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 5. Log de Requisições</h3>
+            <button onclick="clearLogs()">Limpar Logs</button>
+            <pre id="requestLogs"></pre>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let users = [];
+        const API_BASE = 'http://localhost:8000';
+        
+        // Inicialização
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('apiBase').textContent = API_BASE;
+        document.getElementById('codigoMaster1').value = 'TEST_NO_RESP_' + Math.floor(Math.random() * 10000);
+        document.getElementById('codigoMaster2').value = 'TEST_WITH_RESP_' + Math.floor(Math.random() * 10000);
+        
+        function logRequest(message, data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('requestLogs');
+            const logEntry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n\n`;
+            logElement.textContent += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message, data);
+        }
+        
+        function clearLogs() {
+            document.getElementById('requestLogs').textContent = '';
+        }
+        
+        function updateStatus(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.style.color = isSuccess ? 'green' : 'red';
+        }
+        
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/health`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus('backendStatus', '✅ Online', true);
+                    logRequest('✅ Backend conectado', data);
+                    return true;
+                } else {
+                    updateStatus('backendStatus', `❌ Erro ${response.status}`, false);
+                    logRequest('❌ Backend erro', { status: response.status });
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('backendStatus', '❌ Offline', false);
+                logRequest('❌ Backend offline', { error: error.message });
+                return false;
+            }
+        }
+        
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            logRequest('🔐 Tentando login...', { username });
+            
+            try {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                
+                const response = await fetch(`${API_BASE}/api/v1/token`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    updateStatus('tokenStatus', '✅ Token obtido', true);
+                    logRequest('✅ Login realizado', { 
+                        token: data.access_token ? data.access_token.substring(0, 50) + '...' : 'Sem token',
+                        user: data.user ? data.user.nome : 'Sem dados do usuário'
+                    });
+                    
+                    // Habilitar botões
+                    document.getElementById('fetchUsersBtn').disabled = false;
+                    document.getElementById('createWithoutBtn').disabled = false;
+                    document.getElementById('createWithBtn').disabled = false;
+                    
+                    document.getElementById('loginResult').innerHTML = '<div class="success">✅ Login realizado com sucesso!</div>';
+                    return true;
+                } else {
+                    const errorData = await response.json();
+                    updateStatus('tokenStatus', '❌ Erro no login', false);
+                    logRequest('❌ Erro no login', { status: response.status, error: errorData });
+                    document.getElementById('loginResult').innerHTML = `<div class="error">❌ Erro: ${errorData.detail || 'Login falhou'}</div>`;
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('tokenStatus', '❌ Erro de conexão', false);
+                logRequest('❌ Erro de conexão no login', { error: error.message });
+                document.getElementById('loginResult').innerHTML = `<div class="error">❌ Erro de conexão: ${error.message}</div>`;
+                return false;
+            }
+        }
+        
+        async function fetchUsers() {
+            if (!authToken) {
+                alert('Faça login primeiro!');
+                return;
+            }
+            
+            logRequest('👥 Buscando usuários...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/users?limit=10`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    users = await response.json();
+                    logRequest('✅ Usuários obtidos', { count: users.length });
+                    
+                    // Preencher select
+                    const select = document.getElementById('responsavelSelect');
+                    select.innerHTML = '<option value="">Selecione um usuário...</option>';
+                    users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.id;
+                        option.textContent = `${user.nome} (ID: ${user.id})`;
+                        select.appendChild(option);
+                    });
+                    
+                    document.getElementById('usersResult').innerHTML = `<div class="success">✅ ${users.length} usuários encontrados</div>`;
+                } else {
+                    const errorData = await response.json();
+                    logRequest('❌ Erro ao buscar usuários', { status: response.status, error: errorData });
+                    document.getElementById('usersResult').innerHTML = `<div class="error">❌ Erro: ${errorData.detail || 'Falha ao buscar usuários'}</div>`;
+                }
+            } catch (error) {
+                logRequest('❌ Erro de conexão ao buscar usuários', { error: error.message });
+                document.getElementById('usersResult').innerHTML = `<div class="error">❌ Erro de conexão: ${error.message}</div>`;
+            }
+        }
+        
+        async function testCreateWithoutResponsavel() {
+            if (!authToken) {
+                alert('Faça login primeiro!');
+                return;
+            }
+            
+            const codigoMaster = document.getElementById('codigoMaster1').value;
+            
+            const itemData = {
+                unidade: "ULOG",
+                codigo_master: codigoMaster,
+                descritivo_resumido: "Item de teste SEM responsável técnico"
+            };
+            
+            logRequest('📝 Criando item SEM responsável técnico...', itemData);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/catalogo`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(itemData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    logRequest('✅ Item criado SEM responsável', result);
+                    document.getElementById('createWithoutResult').innerHTML = `<div class="success">✅ Item criado! ID: ${result.id}</div>`;
+                } else {
+                    const errorData = await response.json();
+                    logRequest('❌ Erro ao criar item SEM responsável', { status: response.status, error: errorData });
+                    document.getElementById('createWithoutResult').innerHTML = `<div class="error">❌ Erro: ${errorData.detail || 'Falha ao criar item'}</div>`;
+                }
+            } catch (error) {
+                logRequest('❌ Erro de conexão ao criar item SEM responsável', { error: error.message });
+                document.getElementById('createWithoutResult').innerHTML = `<div class="error">❌ Erro de conexão: ${error.message}</div>`;
+            }
+        }
+        
+        async function testCreateWithResponsavel() {
+            if (!authToken) {
+                alert('Faça login primeiro!');
+                return;
+            }
+            
+            const codigoMaster = document.getElementById('codigoMaster2').value;
+            const responsavelId = document.getElementById('responsavelSelect').value;
+            
+            if (!responsavelId) {
+                alert('Selecione um responsável técnico!');
+                return;
+            }
+            
+            const itemData = {
+                unidade: "ULOG",
+                codigo_master: codigoMaster,
+                descritivo_resumido: "Item de teste COM responsável técnico",
+                responsavel_tecnico_id: parseInt(responsavelId)  // CAMPO QUE CAUSA PROBLEMA
+            };
+            
+            logRequest('📝 Criando item COM responsável técnico...', itemData);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/catalogo`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(itemData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    logRequest('✅ Item criado COM responsável', result);
+                    document.getElementById('createWithResult').innerHTML = `<div class="success">✅ Item criado! ID: ${result.id}</div>`;
+                } else {
+                    const errorData = await response.json();
+                    logRequest('❌ Erro ao criar item COM responsável', { status: response.status, error: errorData });
+                    document.getElementById('createWithResult').innerHTML = `<div class="error">❌ Erro: ${errorData.detail || 'Falha ao criar item'}</div>`;
+                }
+            } catch (error) {
+                logRequest('❌ Erro de conexão ao criar item COM responsável', { error: error.message });
+                document.getElementById('createWithResult').innerHTML = `<div class="error">❌ Erro de conexão: ${error.message}</div>`;
+            }
+        }
+        
+        // Verificar backend ao carregar
+        window.onload = async () => {
+            await checkBackend();
+        };
+    </script>
+</body>
+</html>

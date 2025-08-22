@@ -19,7 +19,6 @@ import { NotebookText } from "lucide-react";
 import { ShoppingCart } from "lucide-react";
 import { ChartNoAxesColumnIncreasing } from "lucide-react";
 import { useCurrentUser } from "@/contexts/auth-context";
-import { canAccessUserManagement } from "@/lib/permissions";
 
 const baseNavItems = [
   {
@@ -46,18 +45,15 @@ const baseNavItems = [
     title: "Usuários",
     url: "/dashboard/usuarios",
     icon: IconUsers,
-    requiresPermission: canAccessUserManagement,
+    requiresAdminAccess: true,
   },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentUser = useCurrentUser();
   
-  // Filtrar itens do menu baseado nas permissões do usuário
-  const filteredNavItems = baseNavItems.filter(item => {
-    if (!item.requiresPermission) return true; // Mostrar itens sem restrição
-    return item.requiresPermission(currentUser); // Verificar permissão
-  });
+  // Mostrar todos os itens do menu - acesso livre
+  const filteredNavItems = baseNavItems;
 
   const userData = {
     name: currentUser?.nome || "Usuário",

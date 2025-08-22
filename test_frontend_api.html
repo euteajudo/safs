@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste API Frontend</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Conexão Frontend → Backend (via Proxy)</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+        }
+        
+        async function testAPI() {
+            // Teste 1: Backend direto
+            log('Testando backend direto (http://127.0.0.1:8000)...', 'info');
+            try {
+                const response1 = await fetch('http://127.0.0.1:8000/api/v1/health');
+                const data1 = await response1.json();
+                log('✅ Backend direto OK: ' + JSON.stringify(data1), 'success');
+            } catch (error) {
+                log('❌ Backend direto falhou: ' + error.message, 'error');
+            }
+            
+            // Teste 2: Via proxy do Next.js (se estiver rodando na porta 3000)
+            log('Testando via proxy Next.js (http://localhost:3000/api/backend)...', 'info');
+            try {
+                const response2 = await fetch('http://localhost:3000/api/backend/v1/health');
+                const data2 = await response2.json();
+                log('✅ Proxy Next.js OK: ' + JSON.stringify(data2), 'success');
+            } catch (error) {
+                log('❌ Proxy Next.js falhou: ' + error.message, 'error');
+            }
+            
+            // Teste 3: Login
+            log('Testando login...', 'info');
+            try {
+                const formData = new FormData();
+                formData.append('username', 'teste');
+                formData.append('password', 'teste123');
+                
+                const response3 = await fetch('http://localhost:3000/api/backend/v1/token', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response3.ok) {
+                    const data3 = await response3.json();
+                    log('✅ Login OK, token recebido', 'success');
+                    
+                    // Teste 4: Buscar catálogo com token
+                    log('Testando busca de catálogo...', 'info');
+                    try {
+                        const response4 = await fetch('http://localhost:3000/api/backend/v1/catalogo/', {
+                            headers: {
+                                'Authorization': `Bearer ${data3.access_token}`
+                            }
+                        });
+                        
+                        if (response4.ok) {
+                            const data4 = await response4.json();
+                            log(`✅ Catálogo OK: ${data4.length} itens encontrados`, 'success');
+                        } else {
+                            const errorText = await response4.text();
+                            log(`❌ Erro ao buscar catálogo: Status ${response4.status} - ${errorText}`, 'error');
+                        }
+                    } catch (catError) {
+                        log('❌ Erro na requisição do catálogo: ' + catError.message, 'error');
+                    }
+                } else {
+                    const error = await response3.json();
+                    log('❌ Login falhou: ' + error.detail, 'error');
+                }
+            } catch (error) {
+                log('❌ Erro no teste de login: ' + error.message, 'error');
+            }
+        }
+        
+        // Executar testes
+        testAPI();
+    </script>
+</body>
+</html>

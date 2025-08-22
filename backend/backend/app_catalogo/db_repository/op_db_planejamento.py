@@ -460,3 +460,154 @@ async def listar_itens_por_numero_processo(
     except SQLAlchemyError as e:
         logger.error(f"Erro de DB ao buscar itens para o processo '{numero_processo}': {e}", exc_info=True)
         return []
+
+
+# =============================================================================
+# FUNÇÕES PARA RELACIONAMENTOS MANY-TO-MANY (Nova funcionalidade)
+# =============================================================================
+
+async def associar_compradores_processo(
+    db: AsyncSession, 
+    processo_id: int, 
+    comprador_ids: List[int]
+) -> Optional[PlanejamentoAquisicao]:
+    """
+    Associa múltiplos compradores a um processo de aquisição (relacionamento N:N).
+    
+    Args:
+        db (AsyncSession): Sessão assíncrona SQLAlchemy.
+        processo_id (int): ID do processo de aquisição.
+        comprador_ids (List[int]): Lista de IDs dos compradores.
+    
+    Returns:
+        Optional[PlanejamentoAquisicao]: Processo atualizado com os compradores associados.
+    """
+    logger.info(f"Associando compradores {comprador_ids} ao processo {processo_id}")
+    
+    try:
+        # Buscar o processo com relacionamentos carregados
+        query = (
+            select(PlanejamentoAquisicao)
+            .options(selectinload(PlanejamentoAquisicao.compradores))
+            .where(PlanejamentoAquisicao.id == processo_id)
+        )
+        result = await db.execute(query)
+        processo = result.scalar_one_or_none()
+        
+        if not processo:
+            logger.warning(f"Processo com ID {processo_id} não encontrado")
+            return None
+        
+        # Buscar usuários compradores
+        from app_catalogo.models.user import User
+        query_users = select(User).where(User.id.in_(comprador_ids))
+        result_users = await db.execute(query_users)
+        compradores = result_users.scalars().all()
+        
+        # Limpar associações existentes e adicionar novas
+        processo.compradores.clear()
+        processo.compradores.extend(compradores)
+        
+        await db.commit()
+        await db.refresh(processo)
+        
+        logger.info(f"Compradores associados com sucesso ao processo {processo_id}")
+        return processo
+        
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.error(f"Erro ao associar compradores ao processo {processo_id}: {e}", exc_info=True)
+        return None
+
+
+async def listar_compradores_processo(
+    db: AsyncSession, 
+    processo_id: int
+) -> List[Dict[str, Any]]:
+    """
+    Lista todos os compradores associados a um processo.
+    
+    Args:
+        db (AsyncSession): Sessão assíncrona SQLAlchemy.
+        processo_id (int): ID do processo de aquisição.
+    
+    Returns:
+        List[Dict[str, Any]]: Lista de compradores associados.
+    """
+    logger.info(f"Listando compradores do processo {processo_id}")
+    
+    try:
+        query = (
+            select(PlanejamentoAquisicao)
+            .options(selectinload(PlanejamentoAquisicao.compradores))
+            .where(PlanejamentoAquisicao.id == processo_id)
+        )
+        result = await db.execute(query)
+        processo = result.scalar_one_or_none()
+        
+        if not processo:
+            logger.warning(f"Processo com ID {processo_id} não encontrado")
+            return []
+        
+        compradores = [
+            {
+                "id": comprador.id,
+                "nome": comprador.nome,
+                "email": comprador.email,
+                "unidade": comprador.unidade
+            }
+            for comprador in processo.compradores
+        ]
+        
+        logger.info(f"Encontrados {len(compradores)} compradores para o processo {processo_id}")
+        return compradores
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Erro ao listar compradores do processo {processo_id}: {e}", exc_info=True)
+        return []
+
+
+async def listar_processos_por_comprador(
+    db: AsyncSession, 
+    comprador_id: int,
+    skip: int = 0,
+    limit: int = 100
+) -> List[PlanejamentoAquisicao]:
+    """
+    Lista todos os processos associados a um comprador específico.
+    
+    Args:
+        db (AsyncSession): Sessão assíncrona SQLAlchemy.
+        comprador_id (int): ID do comprador.
+        skip (int): Número de registros a serem ignorados.
+        limit (int): Número máximo de registros a serem retornados.
+    
+    Returns:
+        List[PlanejamentoAquisicao]: Lista de processos associados ao comprador.
+    """
+    logger.info(f"Listando processos do comprador {comprador_id}")
+    
+    try:
+        # Buscar usuário com processos carregados
+        from app_catalogo.models.user import User
+        query = (
+            select(User)
+            .options(selectinload(User.processos_comprados))
+            .where(User.id == comprador_id)
+        )
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            logger.warning(f"Usuário com ID {comprador_id} não encontrado")
+            return []
+        
+        # Aplicar paginação manualmente (SQLAlchemy não suporta offset/limit em relacionamentos)
+        processos = user.processos_comprados[skip:skip+limit] if user.processos_comprados else []
+        
+        logger.info(f"Encontrados {len(processos)} processos para o comprador {comprador_id}")
+        return processos
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Erro ao listar processos do comprador {comprador_id}: {e}", exc_info=True)
+        return []

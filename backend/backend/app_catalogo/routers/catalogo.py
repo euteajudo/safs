@@ -64,7 +64,7 @@ async def get_catalog_stats(
 # --- MÉTODO POST ---
 
 @router.post(
-    "/", 
+    "", 
     response_model=catalogo_schemas.ItemCatalogoRead, 
     status_code=status.HTTP_201_CREATED,
     summary="Cria um novo item no catálogo"
@@ -91,7 +91,7 @@ async def create_item(
 # --- MÉTODOS GET ---
 
 @router.get(
-    "/", 
+    "", 
     response_model=List[catalogo_schemas.ItemCatalogoRead],
     summary="Lista todos os itens do catálogo"
 )
@@ -138,6 +138,32 @@ async def get_item_by_codigo_master(
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item não encontrado")
     return item
+
+@router.get(
+    "/check-codigo-master/{codigo_master}", 
+    status_code=status.HTTP_200_OK,
+    summary="Verifica se um código master já existe"
+)
+async def check_codigo_master_exists(
+    codigo_master: str, 
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Verifica se um código master já está em uso."""
+    try:
+        repo = ItemCatalogoRepository(db)
+        item = await repo.pesquisar_item_por_codigo_master(codigo_master)
+        return {
+            "exists": item is not None,
+            "codigo_master": codigo_master,
+            "message": f"Código master '{codigo_master}' {'já existe' if item else 'está disponível'}"
+        }
+    except Exception as e:
+        logger.error(f"Erro ao verificar código master: {e}")
+        return {
+            "exists": False,
+            "codigo_master": codigo_master,
+            "message": f"Erro ao verificar código master: {str(e)}"
+        }
 
 # --- MÉTODO PATCH ---
 
@@ -189,11 +215,14 @@ async def delete_item(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(security.get_current_active_user)]
 ):
-    """Remove um item do catálogo (requer permissão de superusuário)."""
-    if not current_user.is_superuser:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas superusuários podem remover itens do catálogo")
+    """Remove um item do catálogo (requer permissão especial)."""
+    if not (current_user.is_superuser or current_user.is_chefe_unidade or current_user.is_chefe_setor):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Apenas superusuários, chefes de unidade ou chefes de setor podem remover itens do catálogo"
+        )
     
-    logger.info(f"Superusuário {current_user.email} tentando remover o item ID {item_id}")
+    logger.info(f"Usuário {current_user.email} tentando remover o item ID {item_id}")
     repo = ItemCatalogoRepository(db)
     success = await repo.deletar_item(item_id)
     if not success:
@@ -298,3 +327,4 @@ async def listar_controladores(
     controladores = await listar_controladores_item(db, item_id)
     
     return controladores
+

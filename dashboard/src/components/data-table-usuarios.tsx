@@ -14,6 +14,7 @@ import {
   IconSearch,
   IconDownload,
   IconX,
+  IconTrash,
 } from "@tabler/icons-react"
 import {
   ColumnDef,
@@ -83,7 +84,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { UsuarioFormDialog } from "@/components/usuario-form-dialog"
 import { useCurrentUser } from "@/contexts/auth-context"
-import { canEditSpecificUser } from "@/lib/permissions"
+import { canEditSpecificUser, canDeleteUsers } from "@/lib/permissions"
+import { api } from "@/lib/api"
 
 export const schema = z.object({
   id: z.number(),
@@ -117,7 +119,7 @@ interface Usuario {
   updated_at?: string;
 }
 
-const createColumns = (currentUser: Usuario | null): ColumnDef<z.infer<typeof schema>>[] => [
+const createColumns = (currentUser: Usuario | null, onRefresh?: () => void): ColumnDef<z.infer<typeof schema>>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -301,6 +303,7 @@ const createColumns = (currentUser: Usuario | null): ColumnDef<z.infer<typeof sc
                     }
                     user={row.original}
                     mode="edit"
+                    onSuccess={onRefresh}
                   />
                 )}
                 {!canEditSpecificUser(currentUser, row.original) && (
@@ -427,8 +430,10 @@ const createColumns = (currentUser: Usuario | null): ColumnDef<z.infer<typeof sc
 
 export function DataTable({
   data,
+  onRefresh,
 }: {
   data: Usuario[]
+  onRefresh?: () => void
 }) {
   const currentUser = useCurrentUser()
   const [rowSelection, setRowSelection] = React.useState({})
@@ -441,8 +446,55 @@ export function DataTable({
     pageSize: 10,
   })
   const [unidadeFilter, setUnidadeFilter] = React.useState("")
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
-  const columns = createColumns(currentUser)
+  // Função para deletar usuários selecionados
+  const handleDeleteUsers = async () => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows
+    const selectedUsers = selectedRows.map(row => row.original)
+    
+    if (selectedUsers.length === 0) {
+      alert('Selecione pelo menos um usuário para deletar')
+      return
+    }
+
+    const userNames = selectedUsers.map(user => user.nome).join(', ')
+    const confirmDelete = confirm(
+      `Tem certeza que deseja deletar ${selectedUsers.length === 1 ? 'o usuário' : 'os usuários'}:\n\n${userNames}\n\nEsta ação não pode ser desfeita.`
+    )
+
+    if (!confirmDelete) return
+
+    setIsDeleting(true)
+    let deletedCount = 0
+    let errors: string[] = []
+
+    for (const user of selectedUsers) {
+      try {
+        await api.delete(`/v1/users/${user.id}`)
+        deletedCount++
+      } catch (error) {
+        console.error(`Erro ao deletar usuário ${user.nome}:`, error)
+        errors.push(`${user.nome}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+      }
+    }
+
+    setIsDeleting(false)
+
+    if (errors.length > 0) {
+      alert(`${deletedCount} usuário(s) deletado(s) com sucesso.\n\nErros:\n${errors.join('\n')}`)
+    } else {
+      alert(`${deletedCount} usuário(s) deletado(s) com sucesso!`)
+    }
+
+    // Limpar seleção e recarregar dados
+    table.resetRowSelection()
+    if (onRefresh) {
+      onRefresh()
+    }
+  }
+
+  const columns = createColumns(currentUser, onRefresh)
   
   const table = useReactTable({
     data,
@@ -668,6 +720,30 @@ export function DataTable({
             </DropdownMenuContent>
           </DropdownMenu>
           
+          {/* Botão Deletar Usuário - visível apenas para usuários com permissão */}
+          {canDeleteUsers(currentUser) && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleDeleteUsers}
+              disabled={isDeleting || table.getFilteredSelectedRowModel().rows.length === 0}
+              className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+            >
+              <IconTrash className="h-4 w-4" />
+              <span className="hidden lg:inline">
+                {isDeleting ? "Deletando..." : "Deletar Usuário"}
+              </span>
+              <span className="lg:hidden">
+                {isDeleting ? "..." : "Deletar"}
+              </span>
+              {table.getFilteredSelectedRowModel().rows.length > 0 && (
+                <Badge className="ml-2 h-4 px-1.5 bg-red-600 text-white">
+                  {table.getFilteredSelectedRowModel().rows.length}
+                </Badge>
+              )}
+            </Button>
+          )}
+          
           <Button variant="outline" size="sm" onClick={exportToExcel}>
             <IconDownload className="h-4 w-4" />
             <span className="hidden lg:inline">Exportar Excel</span>
@@ -727,6 +803,7 @@ export function DataTable({
               </Button>
             }
             mode="create"
+            onSuccess={onRefresh}
           />
         </div>
       </div>

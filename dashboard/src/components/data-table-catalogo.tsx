@@ -35,6 +35,7 @@ import {
   IconLoader,
   IconPlus,
   IconSearch,
+  IconTrash,
   IconTrendingUp,
   IconX,
 } from "@tabler/icons-react"
@@ -109,6 +110,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { CatalogoFormDialog } from "@/components/catalogo-form-dialog"
+import { api } from "@/lib/api"
 import {
   LineChart,
   Line,
@@ -341,6 +343,32 @@ function EbserhDetailsSheet({ codigoEbserh, codigoMaster, descricao }: {
 }
 
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <div className="flex items-center justify-center">
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      </div>
+    ),
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center">
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "codigo_master",
     header: "Código Master",
@@ -605,6 +633,7 @@ export function DataTable({
 }) {
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
+  const [isDeleting, setIsDeleting] = React.useState(false)
   
   // Atualizar dados quando initialData mudar
   React.useEffect(() => {
@@ -674,6 +703,52 @@ export function DataTable({
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+
+  // Função para deletar itens selecionados
+  const handleDeleteItems = async () => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows
+    const selectedItems = selectedRows.map(row => row.original)
+    
+    if (selectedItems.length === 0) {
+      alert('Selecione pelo menos um item para deletar')
+      return
+    }
+
+    const itemNames = selectedItems.map(item => item.descritivo_resumido).join(', ')
+    const confirmDelete = confirm(
+      `Tem certeza que deseja deletar ${selectedItems.length === 1 ? 'o item' : 'os itens'}:\n\n${itemNames}\n\nEsta ação não pode ser desfeita.`
+    )
+
+    if (!confirmDelete) return
+
+    setIsDeleting(true)
+    let deletedCount = 0
+    let errors: string[] = []
+
+    for (const item of selectedItems) {
+      try {
+        await api.delete(`/v1/catalogo/${item.id}`)
+        deletedCount++
+      } catch (error) {
+        console.error(`Erro ao deletar item ${item.descritivo_resumido}:`, error)
+        errors.push(`${item.descritivo_resumido}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+      }
+    }
+
+    setIsDeleting(false)
+
+    if (errors.length > 0) {
+      alert(`${deletedCount} item(s) deletado(s) com sucesso.\n\nErros:\n${errors.join('\n')}`)
+    } else {
+      alert(`${deletedCount} item(s) deletado(s) com sucesso!`)
+    }
+
+    // Limpar seleção e recarregar dados
+    table.resetRowSelection()
+    if (onRefresh) {
+      onRefresh()
+    }
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -934,6 +1009,28 @@ export function DataTable({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Botão Deletar Item */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleDeleteItems}
+            disabled={isDeleting || table.getFilteredSelectedRowModel().rows.length === 0}
+            className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+          >
+            <IconTrash className="h-4 w-4" />
+            <span className="hidden lg:inline">
+              {isDeleting ? "Deletando..." : "Deletar Item"}
+            </span>
+            <span className="lg:hidden">
+              {isDeleting ? "..." : "Deletar"}
+            </span>
+            {table.getFilteredSelectedRowModel().rows.length > 0 && (
+              <Badge className="ml-2 h-4 px-1.5 bg-red-600 text-white">
+                {table.getFilteredSelectedRowModel().rows.length}
+              </Badge>
+            )}
+          </Button>
 
           {/* Botão de Download */}
           <Button 

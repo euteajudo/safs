@@ -25,12 +25,6 @@ controlador_item_association = Table(
     Column('item_id', Integer, ForeignKey('itens_catalogo.id', name='fk_controlador_item_item_id'), primary_key=True)
 )
 
-responsavel_tecnico_item_association = Table(
-    'responsavel_tecnico_item',
-    Base.metadata,
-    Column('responsavel_tecnico_id', Integer, ForeignKey('users_safs.id', name='fk_responsavel_tecnico_item_user_id'), primary_key=True),
-    Column('item_id', Integer, ForeignKey('itens_catalogo.id', name='fk_responsavel_tecnico_item_item_id'), primary_key=True)
-)
 
 
 class ItensCatalogo(Base):
@@ -51,13 +45,14 @@ class ItensCatalogo(Base):
     classificacao_xyz: Mapped[str] = mapped_column(String(10), nullable=True)
 
 
-    responsavel_tecnico: Mapped[str] = mapped_column(String(100), nullable=True)
     comprador_id: Mapped[int] = mapped_column(Integer, ForeignKey("users_safs.id"), nullable=True)
     controlador_id: Mapped[int] = mapped_column(Integer, ForeignKey("users_safs.id"), nullable=True)
+    responsavel_tecnico_id: Mapped[int] = mapped_column(Integer, ForeignKey("responsaveis_tecnicos.id"), nullable=True)
 
     # RELACIONAMENTOS 1:N (mantidos para compatibilidade)
     comprador = relationship("User", foreign_keys=[comprador_id], backref="itens_comprados")
     controlador = relationship("User", foreign_keys=[controlador_id], backref="itens_controlados")
+    responsavel_tecnico = relationship("ResponsavelTecnico", foreign_keys=[responsavel_tecnico_id], backref="itens_catalogo")
     
     # RELACIONAMENTOS N:N (nova funcionalidade)
     # Relacionamento many-to-many com processos
@@ -78,13 +73,6 @@ class ItensCatalogo(Base):
         "User", 
         secondary=controlador_item_association, 
         back_populates="itens_controlados_nn",
-        lazy="selectin"
-    )
-    # Relacionamento many-to-many com usuários - responsável técnico
-    responsaveis_tecnicos = relationship(
-        "User", 
-        secondary=responsavel_tecnico_item_association, 
-        back_populates="itens_responsaveis_tecnicos",
         lazy="selectin"
     )
 

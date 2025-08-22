@@ -55,7 +55,7 @@ async def get_users_stats(
     }
 
 @router.post(
-    "/", 
+    "", 
     response_model=UserRead, 
     status_code=status.HTTP_201_CREATED,
     summary="Cria um novo usuário"
@@ -86,7 +86,7 @@ async def create_user(
         )
 
 @router.get(
-    "/", 
+    "", 
     response_model=List[UserRead],
     status_code=status.HTTP_200_OK,
     summary="Lista usuários com paginação"
@@ -189,14 +189,15 @@ async def delete_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(security.get_current_active_user)]
 ):
-    """Remove um usuário (requer autenticação de superuser)."""
+    """Remove um usuário (requer autenticação de superuser, chefe de unidade ou chefe de setor)."""
     # <-- NOVO LOG de auditoria
     logger.info(f"Usuário ID {current_user.id} tentando remover o usuário ID {user_id}.")
 
-    if not current_user.is_superuser:
+    # Verificar permissões: superusuário, chefe de unidade ou chefe de setor
+    if not (current_user.is_superuser or current_user.is_chefe_unidade or current_user.is_chefe_setor):
         # <-- NOVO LOG de segurança
-        logger.warning(f"Acesso negado: Usuário ID {current_user.id} tentou remover usuário ID {user_id} sem ser superuser.")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas superusuários podem remover usuários")
+        logger.warning(f"Acesso negado: Usuário ID {current_user.id} tentou remover usuário ID {user_id} sem permissões adequadas.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas superusuários, chefes de unidade ou chefes de setor podem remover usuários")
         
     user_repo = UserRepository(db)
     success = await user_repo.deletar_usuario(user_id)

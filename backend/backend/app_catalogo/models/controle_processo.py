@@ -1,8 +1,16 @@
 """Controle de processos"""
 
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Integer, ForeignKey, Table, Column
 from app_catalogo.models.base import Base
+
+# Tabela associativa para relacionamento many-to-many entre compradores e processos
+comprador_processo_association = Table(
+    'comprador_processo',
+    Base.metadata, 
+    Column('comprador_id', Integer, ForeignKey('users_safs.id', name='fk_comprador_processo_user_id'), primary_key=True),
+    Column('processo_id', Integer, ForeignKey('planejamento_aquisicao.id', name='fk_comprador_processo_processo_id'), primary_key=True)
+)
 
 class PlanejamentoAquisicao(Base):
     """Modelo que cria a tabela para controle de processos de aquisição"""
@@ -19,6 +27,13 @@ class PlanejamentoAquisicao(Base):
     status_compra_centralizada: Mapped[str] = mapped_column(String(50), nullable=True)
     observacao: Mapped[str] = mapped_column(String(255), nullable=True)
 
+    # RELACIONAMENTO N:N com compradores
+    compradores = relationship(
+        "User", 
+        secondary=comprador_processo_association, 
+        back_populates="processos_comprados",
+        lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return (

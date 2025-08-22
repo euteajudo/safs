@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IconUpload, IconUser, IconX } from "@tabler/icons-react";
+import { api } from "@/lib/api";
 
 const perfilSchema = z.object({
   nome: z.string().optional(), // Campo somente leitura
@@ -74,9 +75,10 @@ interface Usuario {
 interface PerfilFormDialogProps {
   trigger: React.ReactNode;
   user: Usuario;
+  onSuccess?: () => void; // Callback para quando atualização for bem-sucedida
 }
 
-export function PerfilFormDialog({ trigger, user }: PerfilFormDialogProps) {
+export function PerfilFormDialog({ trigger, user, onSuccess }: PerfilFormDialogProps) {
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = useState(false);
   const [previewImage, setPreviewImage] = React.useState<string | null>(user?.foto_url || null);
@@ -94,26 +96,25 @@ export function PerfilFormDialog({ trigger, user }: PerfilFormDialogProps) {
     },
   });
 
-  function onSubmit(values: PerfilFormValues) {
+  async function onSubmit(values: PerfilFormValues) {
     setLoading(true);
     
-    // Preparar dados para envio - apenas campos permitidos para edição
-    const userData: any = {
-      foto_url: values.foto_url, // Única informação pessoal editável
-    };
-    
-    // Se nova senha foi fornecida, incluir dados de alteração de senha
-    if (values.nova_senha && values.nova_senha.length > 0) {
-      userData.senha_atual = values.senha_atual;
-      userData.nova_senha = values.nova_senha;
-    }
-    
-    console.log("Atualizando perfil do usuário (apenas foto e senha):", { ...userData, id: user.id });
-    // TODO: Implementar atualização via API
-    
-    // Simular delay da API
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Preparar dados para envio - apenas campos permitidos para edição
+      const userData: any = {
+        foto_url: values.foto_url, // Única informação pessoal editável
+      };
+      
+      // Se nova senha foi fornecida, incluir dados de alteração de senha
+      if (values.nova_senha && values.nova_senha.length > 0) {
+        userData.senha = values.nova_senha; // Backend espera 'senha', não 'nova_senha'
+      }
+      
+      console.log("Atualizando perfil do usuário (apenas foto e senha):", { ...userData, id: user.id });
+      
+      // Chamar API para atualizar usuário
+      await api.put(`/v1/users/${user.id}`, userData);
+      
       form.reset({
         nome: user.nome,
         username: user.username,
@@ -124,8 +125,20 @@ export function PerfilFormDialog({ trigger, user }: PerfilFormDialogProps) {
         confirmar_nova_senha: "",
       });
       setOpen(false);
+      
       alert("Perfil atualizado com sucesso!");
-    }, 1000);
+      
+      // Chamar callback se fornecido
+      if (onSuccess) {
+        onSuccess();
+      }
+      
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
+      alert(`Erro ao atualizar perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleCancel = () => {

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Frontend Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug da Conexão Frontend → Backend</h1>
+    
+    <div id="results"></div>
+    
+    <button onclick="testAllConnections()">🚀 Testar Todas as Conexões</button>
+    <button onclick="testCors()">🌐 Testar CORS</button>
+    <button onclick="testLogin()">🔐 Testar Login</button>
+    <button onclick="testCatalog()">📋 Testar Catálogo</button>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        function addResult(title, success, message, details = null) {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${success ? '✅' : '❌'} ${title}</h3>
+                <p>${message}</p>
+                ${details ? `<pre>${JSON.stringify(details, null, 2)}</pre>` : ''}
+            `;
+            results.appendChild(div);
+        }
+        
+        async function testConnection(url, description) {
+            try {
+                console.log(`Testando: ${description} - ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(description, true, `Conectado com sucesso! Status: ${response.status}`, data);
+                    return { success: true, data, status: response.status };
+                } else {
+                    const errorData = await response.text();
+                    addResult(description, false, `Erro HTTP ${response.status}`, errorData);
+                    return { success: false, status: response.status, error: errorData };
+                }
+            } catch (error) {
+                console.error(`Erro em ${description}:`, error);
+                addResult(description, false, `Erro de conexão: ${error.message}`, {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                return { success: false, error: error.message };
+            }
+        }
+        
+        async function testCors() {
+            results.innerHTML = '';
+            addResult('Teste CORS', true, 'Iniciando teste de CORS...');
+            
+            // Teste OPTIONS request
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/health', {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET'
+                    }
+                });
+                
+                const corsHeaders = {};
+                for (const [key, value] of response.headers.entries()) {
+                    if (key.toLowerCase().includes('access-control')) {
+                        corsHeaders[key] = value;
+                    }
+                }
+                
+                addResult('CORS Headers', true, 'Headers CORS encontrados', corsHeaders);
+            } catch (error) {
+                addResult('CORS Test', false, `Erro no teste CORS: ${error.message}`);
+            }
+        }
+        
+        async function testLogin() {
+            results.innerHTML = '';
+            
+            // Primeiro testar health check
+            const healthResult = await testConnection('http://localhost:8000/api/v1/health', 'Health Check');
+            
+            if (!healthResult.success) {
+                return;
+            }
+            
+            // Testar login
+            try {
+                const formData = new FormData();
+                formData.append('username', 'teste2');
+                formData.append('password', '123456');
+                
+                const response = await fetch('http://localhost:8000/api/v1/token', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const tokenData = await response.json();
+                    addResult('Login', true, 'Login realizado com sucesso!', {
+                        token: tokenData.access_token ? tokenData.access_token.substring(0, 50) + '...' : 'Sem token',
+                        token_type: tokenData.token_type
+                    });
+                    
+                    // Salvar token para outros testes
+                    localStorage.setItem('debug_token', tokenData.access_token);
+                } else {
+                    const errorData = await response.json();
+                    addResult('Login', false, `Erro no login: ${response.status}`, errorData);
+                }
+            } catch (error) {
+                addResult('Login', false, `Erro de conexão no login: ${error.message}`);
+            }
+        }
+        
+        async function testCatalog() {
+            results.innerHTML = '';
+            
+            const token = localStorage.getItem('debug_token');
+            if (!token) {
+                addResult('Catálogo', false, 'Token não encontrado. Execute o teste de login primeiro.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/catalogo?limit=5', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const catalogData = await response.json();
+                    addResult('Catálogo', true, `Catálogo acessado com sucesso! ${catalogData.length} itens encontrados`, 
+                        catalogData.slice(0, 2)); // Mostrar apenas 2 primeiros itens
+                } else {
+                    const errorData = await response.json();
+                    addResult('Catálogo', false, `Erro ao acessar catálogo: ${response.status}`, errorData);
+                }
+            } catch (error) {
+                addResult('Catálogo', false, `Erro de conexão no catálogo: ${error.message}`);
+            }
+        }
+        
+        async function testAllConnections() {
+            results.innerHTML = '';
+            addResult('Início dos Testes', true, 'Iniciando bateria completa de testes...');
+            
+            // URLs para testar
+            const tests = [
+                { url: 'http://localhost:8000/api/v1/health', desc: 'Localhost Health' },
+                { url: 'http://127.0.0.1:8000/api/v1/health', desc: '127.0.0.1 Health' },
+                { url: 'http://10.28.130.20:8000/api/v1/health', desc: 'Network IP Health' }
+            ];
+            
+            for (const test of tests) {
+                await testConnection(test.url, test.desc);
+            }
+            
+            // Testar informações do navegador
+            addResult('Informações do Navegador', true, 'Informações coletadas', {
+                userAgent: navigator.userAgent,
+                currentOrigin: window.location.origin,
+                currentHost: window.location.hostname,
+                currentPort: window.location.port,
+                currentProtocol: window.location.protocol
+            });
+        }
+        
+        // Executar teste inicial
+        window.onload = () => {
+            addResult('Sistema Carregado', true, 'Página de debug carregada. Clique nos botões para executar os testes.');
+        };
+    </script>
+</body>
+</html>

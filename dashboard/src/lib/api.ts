@@ -2,7 +2,8 @@
  * Utilitário para fazer requisições autenticadas para a API
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// URL da API - usar proxy do Next.js para evitar problemas de CORS
+const BASE_URL = '/api/backend';
 
 // Função para obter o token do localStorage
 const getToken = (): string | null => {
@@ -63,30 +64,98 @@ const handleResponse = async (response: Response) => {
   return response.text();
 };
 
+// Função para obter a URL base dinamicamente
+const getApiUrl = () => {
+  // SOLUÇÃO DE EMERGÊNCIA: Usar proxy do Next.js
+  const apiUrl = BASE_URL; // '/api/backend' - proxy para localhost:8000
+  
+  console.log('🎯 URL da API (via proxy):', apiUrl);
+  return apiUrl;
+};
+
 // Funções para fazer requisições autenticadas
 export const api = {
   // GET request
   get: async (endpoint: string) => {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
+    const url = getApiUrl();
+    const fullUrl = `${url}${endpoint}`;
+    const headers = getAuthHeaders();
+    
+    console.log('🔄 GET Request:', {
+      endpoint,
+      fullUrl,
+      headers: { ...headers, Authorization: headers.Authorization ? '[TOKEN PRESENT]' : '[NO TOKEN]' }
     });
-    return handleResponse(response);
+    
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers,
+      });
+      
+      console.log('📥 GET Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      return handleResponse(response);
+    } catch (error) {
+      console.error('❌ GET Request Failed:', {
+        endpoint,
+        fullUrl,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   },
 
   // POST request
   post: async (endpoint: string, data?: any) => {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
+    const url = getApiUrl();
+    const fullUrl = `${url}${endpoint}`;
+    const headers = getAuthHeaders();
+    
+    console.log('🔄 POST Request:', {
+      endpoint,
+      fullUrl,
+      headers: { ...headers, Authorization: headers.Authorization ? '[TOKEN PRESENT]' : '[NO TOKEN]' },
+      data: data ? JSON.stringify(data, null, 2) : 'No data'
     });
-    return handleResponse(response);
+    
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      });
+      
+      console.log('📥 POST Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      return handleResponse(response);
+    } catch (error) {
+      console.error('❌ POST Request Failed:', {
+        endpoint,
+        fullUrl,
+        error: error.message,
+        stack: error.stack,
+        data
+      });
+      throw error;
+    }
   },
 
   // PUT request
   put: async (endpoint: string, data?: any) => {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = getApiUrl();
+    const response = await fetch(`${url}${endpoint}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
@@ -96,7 +165,8 @@ export const api = {
 
   // PATCH request
   patch: async (endpoint: string, data?: any) => {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = getApiUrl();
+    const response = await fetch(`${url}${endpoint}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
@@ -106,7 +176,8 @@ export const api = {
 
   // DELETE request
   delete: async (endpoint: string) => {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = getApiUrl();
+    const response = await fetch(`${url}${endpoint}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -122,7 +193,8 @@ export const api = {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = getApiUrl();
+    const response = await fetch(`${url}${endpoint}`, {
       method: 'POST',
       headers,
       body: formData,
@@ -137,7 +209,8 @@ export const loginApi = async (username: string, password: string) => {
   formData.append('username', username);
   formData.append('password', password);
 
-  const response = await fetch(`${BASE_URL}/api/v1/token`, {
+  const url = getApiUrl();
+  const response = await fetch(`${url}/v1/token`, {
     method: 'POST',
     body: formData,
   });

@@ -1,7 +1,10 @@
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from .user import User as UserRead
 
 class StatusProcessoPlanejamento(str, Enum):
     EM_ANDAMENTO = "Em andamento"
@@ -25,6 +28,12 @@ class ProcessoBase(BaseModel):
     numero_processo_compra_centralizada: Optional[str] = Field(None, max_length=50, description="Número do processo de compra centralizada")
     status_compra_centralizada: Optional[StatusCompra] = Field(None, description="Status da compra centralizada")
     observacao: Optional[str] = Field(None, max_length=1000, description="Observações")
+    
+    # CAMPO N:N (nova funcionalidade)
+    comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores responsáveis")
+    
+    # CAMPO N:N (nova funcionalidade)
+    comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores responsáveis")
     
     @validator('objeto_aquisicao')
     def validate_objeto_aquisicao(cls, v):
@@ -57,9 +66,15 @@ class ProcessoUpdate(BaseModel):
     numero_processo_compra_centralizada: Optional[str] = Field(None, max_length=50, description="Número do processo de compra centralizada")
     status_compra_centralizada: Optional[StatusCompra] = Field(None, description="Status da compra centralizada")
     observacao: Optional[str] = Field(None, max_length=1000, description="Observações")
+    
+    # CAMPO N:N (nova funcionalidade)
+    comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores responsáveis")
 
 class ProcessoRead(ProcessoBase):
     id: int
+    
+    # RELACIONAMENTO N:N (nova funcionalidade)
+    compradores: Optional[List['UserRead']] = []
 
     class Config:
         from_attributes = True

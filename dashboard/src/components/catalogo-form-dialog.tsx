@@ -34,11 +34,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+// import { Checkbox } from "@/components/ui/checkbox"; // Não utilizado
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { testBackendConnection } from "@/lib/test-api";
 
 const catalogoSchema = z.object({
   unidade: z.string().min(1, "Unidade é obrigatória").max(20),
@@ -51,7 +52,7 @@ const catalogoSchema = z.object({
   descritivo_resumido: z.string().min(1, "Descritivo resumido é obrigatório").max(300),
   apresentacao: z.string().max(100).optional().or(z.literal("")),
   classificacao_xyz: z.string().max(10).optional().or(z.literal("")),
-  responsavel_tecnico: z.string().max(100).optional().or(z.literal("")),
+  // responsavel_tecnico: z.string().max(100).optional().or(z.literal("")), // Removido para evitar conflito
   responsavel_tecnico_id: z.string().optional().or(z.literal("")),
   comprador_id: z.string().optional().or(z.literal("")),
   controlador_id: z.string().optional().or(z.literal("")),
@@ -89,7 +90,7 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
   const [compradores, setCompradores] = useState<User[]>([]);
   const [controladores, setControladores] = useState<User[]>([]);
   const [responsaveisTecnicos, setResponsaveisTecnicos] = useState<User[]>([]);
-  const [processos, setProcessos] = useState<Processo[]>([]);
+  const [, setProcessos] = useState<Processo[]>([]); // processos não usado diretamente
   const [loading, setLoading] = useState(false);
   
   const form = useForm<CatalogoFormValues>({
@@ -105,13 +106,13 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
       descritivo_resumido: item.descritivo_resumido || "",
       apresentacao: item.apresentacao || "",
       classificacao_xyz: item.classificacao_xyz || "",
-      responsavel_tecnico: item.responsavel_tecnico || "",
+      // responsavel_tecnico: item.responsavel_tecnico || "", // Removido
       responsavel_tecnico_id: String(item.responsavel_tecnico_id || ""),
       comprador_id: String(item.comprador_id || ""),
       controlador_id: String(item.controlador_id || ""),
       observacao: item.observacao || "",
     } : {
-      unidade: "",
+      unidade: "SAFS",
       descritivo_detalhado: "",
       codigo_master: "",
       codigo_aghu_hu: "",
@@ -121,7 +122,7 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
       descritivo_resumido: "",
       apresentacao: "",
       classificacao_xyz: "",
-      responsavel_tecnico: "",
+      // responsavel_tecnico: "", // Removido
       responsavel_tecnico_id: "",
       comprador_id: "",
       controlador_id: "",
@@ -149,12 +150,12 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
       const { api } = await import('@/lib/api');
       
       // Buscar todos os usuários (compradores e controladores virão da mesma API)
-      const users = await api.get('/api/v1/users?limit=1000');
+      const users = await api.get('/v1/users?limit=1000');
       
       // Filtrar usuários por perfil (assumindo que existe uma flag para identificar)
       // Por enquanto, vamos mostrar todos os usuários ativos para ambos os campos
-      const activeUsers = users.filter((user: any) => user.is_active);
-      const userList = activeUsers.map((user: any) => ({
+      const activeUsers = users.filter((user: User) => user.is_active);
+      const userList = activeUsers.map((user: User) => ({
         id: user.id.toString(),
         nome: user.nome,
         email: user.email
@@ -165,8 +166,8 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
       setResponsaveisTecnicos(userList);
 
       // Buscar processos de aquisição
-      const processos = await api.get('/api/v1/processos?limit=1000');
-      setProcessos(processos.map((processo: any) => ({
+      const processos = await api.get('/v1/processos?limit=1000');
+      setProcessos(processos.map((processo: Processo) => ({
         id: processo.id.toString(),
         numero: processo.numero_processo_planejamento,
         descricao: processo.objeto_aquisicao
@@ -205,38 +206,73 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
     try {
       setLoading(true);
       
-      // Preparar dados para envio - converter IDs string para number e limpar campos vazios
-      const submitData: any = {
+      // Preparar dados para envio - VERSÃO SIMPLIFICADA
+      const submitData: Record<string, unknown> = {
         unidade: values.unidade,
         codigo_master: values.codigo_master,
-        descritivo_resumido: values.descritivo_resumido,
-        // Campos opcionais - enviar apenas se preenchidos
-        descritivo_detalhado: values.descritivo_detalhado || undefined,
-        codigo_aghu_hu: values.codigo_aghu_hu || undefined,
-        codigo_aghu_meac: values.codigo_aghu_meac || undefined,
-        catmat: values.catmat || undefined,
-        codigo_ebserh: values.codigo_ebserh || undefined,
-        apresentacao: values.apresentacao || undefined,
-        classificacao_xyz: values.classificacao_xyz || undefined,
-        responsavel_tecnico: values.responsavel_tecnico || undefined,
-        observacao: values.observacao || undefined,
-        // Converter IDs de string para number
-        comprador_id: values.comprador_id ? parseInt(values.comprador_id) : undefined,
-        controlador_id: values.controlador_id ? parseInt(values.controlador_id) : undefined,
-        // ID do responsável técnico
-        responsavel_tecnico_id: values.responsavel_tecnico_id ? parseInt(values.responsavel_tecnico_id) : undefined,
+        descritivo_resumido: values.descritivo_resumido
       };
-      
-      // Remover campos undefined do objeto
-      Object.keys(submitData).forEach(key => {
-        if (submitData[key] === undefined) {
-          delete submitData[key];
+
+      // Adicionar campos opcionais apenas se preenchidos
+      if (values.descritivo_detalhado && values.descritivo_detalhado.trim()) {
+        submitData.descritivo_detalhado = values.descritivo_detalhado.trim();
+      }
+      if (values.codigo_aghu_hu && values.codigo_aghu_hu.trim()) {
+        submitData.codigo_aghu_hu = values.codigo_aghu_hu.trim();
+      }
+      if (values.codigo_aghu_meac && values.codigo_aghu_meac.trim()) {
+        submitData.codigo_aghu_meac = values.codigo_aghu_meac.trim();
+      }
+      if (values.catmat && values.catmat.trim()) {
+        submitData.catmat = values.catmat.trim();
+      }
+      if (values.codigo_ebserh && values.codigo_ebserh.trim()) {
+        submitData.codigo_ebserh = values.codigo_ebserh.trim();
+      }
+      if (values.apresentacao && values.apresentacao.trim()) {
+        submitData.apresentacao = values.apresentacao.trim();
+      }
+      if (values.classificacao_xyz && values.classificacao_xyz.trim()) {
+        submitData.classificacao_xyz = values.classificacao_xyz.trim();
+      }
+      if (values.observacao && values.observacao.trim()) {
+        submitData.observacao = values.observacao.trim();
+      }
+
+      // Tratar relacionamentos apenas se selecionados
+      if (values.comprador_id && values.comprador_id.trim() && values.comprador_id !== "") {
+        const compradorId = parseInt(values.comprador_id);
+        if (!isNaN(compradorId) && compradorId > 0) {
+          submitData.comprador_id = compradorId;
         }
+      }
+
+      if (values.controlador_id && values.controlador_id.trim() && values.controlador_id !== "") {
+        const controladorId = parseInt(values.controlador_id);
+        if (!isNaN(controladorId) && controladorId > 0) {
+          submitData.controlador_id = controladorId;
+        }
+      }
+
+      // RESPONSÁVEL TÉCNICO - Tratamento especial para evitar erros
+      if (values.responsavel_tecnico_id && values.responsavel_tecnico_id.trim() && values.responsavel_tecnico_id !== "") {
+        const responsavelId = parseInt(values.responsavel_tecnico_id);
+        if (!isNaN(responsavelId) && responsavelId > 0) {
+          // Enviar apenas o campo que o backend consegue processar
+          submitData.responsavel_tecnico_id = responsavelId;
+        }
+      }
+      
+      // Log simplificado para debug
+      console.log("📤 Dados sendo enviados:", {
+        ...submitData,
+        // Mascarar campos sensíveis se houver
+        codigo_master: submitData.codigo_master
       });
       
       if (mode === "edit" && item?.id) {
         console.log("Editando item:", { ...submitData, id: item.id });
-        const response = await api.patch(`/api/v1/catalogo/${item.id}`, submitData);
+        const response = await api.patch(`/v1/catalogo/${item.id}`, submitData);
         console.log('Item editado com sucesso:', response);
         
         // Fechar modal
@@ -248,7 +284,12 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
         }
       } else {
         console.log("Criando novo item:", submitData);
-        const response = await api.post('/api/v1/catalogo/', submitData);
+        console.log("JSON sendo enviado:", JSON.stringify(submitData));
+        
+        // Comentado - causava erro por não usar o proxy
+        // await testBackendConnection();
+        
+        const response = await api.post('/v1/catalogo', submitData);
         console.log('Item criado com sucesso:', response);
         
         // Resetar formulário e fechar modal
@@ -261,11 +302,34 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
         }
       }
       
-    } catch (error: any) {
-      console.error('Erro ao salvar item:', error);
-      // Mostrar erro mais amigável para o usuário
-      const errorMessage = error?.message || 'Erro ao salvar item. Verifique os dados e tente novamente.';
-      alert(`Erro: ${errorMessage}`);
+    } catch (error: unknown) {
+      console.error('Erro completo ao salvar item:', error);
+      const errorObj = error as Error;
+      console.error('Tipo do erro:', errorObj?.name);
+      console.error('Mensagem do erro:', errorObj?.message);
+      console.error('Stack do erro:', errorObj?.stack);
+      
+      // Verificar se é erro de rede/CORS
+      if (errorObj?.name === 'TypeError' && errorObj?.message === 'Failed to fetch') {
+        console.error('Erro de conexão com o backend. Verificando token...');
+        const token = localStorage.getItem('token');
+        console.log('Token presente:', !!token);
+        if (token) {
+          console.log('Token:', token.substring(0, 50) + '...');
+        }
+        alert('Erro de conexão com o servidor. Por favor, verifique se o backend está rodando e tente novamente.');
+      } else {
+        const errorMessage = (error as Error)?.message || 'Erro ao salvar item. Verifique os dados e tente novamente.';
+        
+        // Verificar se é erro de código master duplicado
+        if (errorMessage.includes('já existe') || errorMessage.includes('duplicado')) {
+          alert(`❌ Código Master já existe!\n\nO código "${values.codigo_master}" já está cadastrado no sistema. Por favor, use um código diferente.`);
+        } else if (errorMessage.includes('ID de relacionamento inválido')) {
+          alert(`❌ Erro de relacionamento!\n\nVerifique se os usuários selecionados (comprador, controlador, responsável técnico) são válidos.`);
+        } else {
+          alert(`❌ Erro: ${errorMessage}`);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -288,7 +352,7 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
         descritivo_resumido: item.descritivo_resumido || "",
         apresentacao: item.apresentacao || "",
         classificacao_xyz: item.classificacao_xyz || "",
-        responsavel_tecnico: item.responsavel_tecnico || "",
+        // responsavel_tecnico: item.responsavel_tecnico || "", // Removido
         responsavel_tecnico_id: String(item.responsavel_tecnico_id || ""),
         comprador_id: String(item.comprador_id || ""),
         controlador_id: String(item.controlador_id || ""),

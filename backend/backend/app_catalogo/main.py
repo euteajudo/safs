@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app_catalogo.routers import login, users, catalogo, controle_processos
+from app_catalogo.routers import login, users, catalogo, controle_processos, resp_tec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,6 +47,10 @@ app = FastAPI(
             "description": "Operações de gerenciamento do catálogo de itens"
         },
         {
+            "name": "Responsáveis Técnicos",
+            "description": "Operações de gerenciamento de responsáveis técnicos"
+        },
+        {
             "name": "Health Check",
             "description": "Verificação de status da API"
         }
@@ -65,6 +69,8 @@ origins = [
     "http://localhost:8080",  # Common dev port
     "http://127.0.0.1:8080",
     "http://10.28.130.20:3000",  # Network address from Next.js output
+    "http://10.28.130.20:3001",
+    "http://10.28.130.20:3002",
     "*",  # Allow all origins for debugging (remove in production)
 ]
 
@@ -81,6 +87,7 @@ app.include_router(login.router, prefix="/api/v1", tags=["Login"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Usuários"])
 app.include_router(controle_processos.router, prefix="/api/v1/processos", tags=["Processos de Aquisição"])
 app.include_router(catalogo.router, prefix="/api/v1/catalogo", tags=["Catálogo de Itens"])
+app.include_router(resp_tec.router, prefix="/api/v1", tags=["Responsáveis Técnicos"])
 
 
 @app.get("/api/v1/health", tags=["Health Check"])

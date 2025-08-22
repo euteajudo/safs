@@ -49,5 +49,27 @@ async def login_for_access_token(
         data={"sub": user.username}
     )
 
-    # 5. Retorna o token para o cliente
-    return {"access_token": access_token, "token_type": "bearer"}
+    # 4. Preparar dados do usuário para retorno
+    from app_catalogo.schemas.token_data import UserInToken
+    user_data = UserInToken(
+        id=user.id,
+        username=user.username,
+        nome=user.nome,
+        email=user.email,
+        unidade=user.unidade,
+        is_active=user.is_active,
+        is_superuser=user.is_superuser,
+        is_chefe_unidade=user.is_chefe_unidade,
+        is_chefe_setor=user.is_chefe_setor,
+        is_funcionario=user.is_funcionario,
+        foto_url=getattr(user, 'foto_url', None),
+        created_at=user.created_at,
+        updated_at=getattr(user, 'updated_at', None)
+    )
+
+    # 5. Retorna o token e dados do usuário para o cliente
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": user_data
+    }

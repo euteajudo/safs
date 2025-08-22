@@ -3,6 +3,7 @@ from .base import Base
 from .user import User
 from .catalogo import ItensCatalogo
 from .controle_processo import PlanejamentoAquisicao
+from .resp_tec import ResponsavelTecnico
 
 # Disponibilizar os modelos para importação
-__all__ = ['Base', 'User', 'ItensCatalogo', 'PlanejamentoAquisicao'] 
+__all__ = ['Base', 'User', 'ItensCatalogo', 'PlanejamentoAquisicao', 'ResponsavelTecnico'] 

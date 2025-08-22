@@ -18,6 +18,7 @@ from app_catalogo.models.base import Base
 from app_catalogo.models.user import User
 from app_catalogo.models.catalogo import ItensCatalogo
 from app_catalogo.models.controle_processo import PlanejamentoAquisicao
+from app_catalogo.models.resp_tec import ResponsavelTecnico
 
 
 
