@@ -307,10 +307,12 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
       const errorObj = error as Error;
       console.error('Tipo do erro:', errorObj?.name);
       console.error('Mensagem do erro:', errorObj?.message);
-      console.error('Stack do erro:', errorObj?.stack);
+      if (errorObj?.stack) {
+        console.error('Stack do erro:', errorObj.stack);
+      }
       
       // Verificar se é erro de rede/CORS
-      if (errorObj?.name === 'TypeError' && errorObj?.message === 'Failed to fetch') {
+      if (errorObj?.name === 'TypeError' && errorObj?.message?.includes('Failed to fetch')) {
         console.error('Erro de conexão com o backend. Verificando token...');
         const token = localStorage.getItem('token');
         console.log('Token presente:', !!token);
@@ -319,13 +321,15 @@ export function CatalogoFormDialog({ trigger, item, mode = "create", onSuccess }
         }
         alert('Erro de conexão com o servidor. Por favor, verifique se o backend está rodando e tente novamente.');
       } else {
-        const errorMessage = (error as Error)?.message || 'Erro ao salvar item. Verifique os dados e tente novamente.';
+        const errorMessage = errorObj?.message || 'Erro ao salvar item. Verifique os dados e tente novamente.';
         
         // Verificar se é erro de código master duplicado
         if (errorMessage.includes('já existe') || errorMessage.includes('duplicado')) {
           alert(`❌ Código Master já existe!\n\nO código "${values.codigo_master}" já está cadastrado no sistema. Por favor, use um código diferente.`);
         } else if (errorMessage.includes('ID de relacionamento inválido')) {
           alert(`❌ Erro de relacionamento!\n\nVerifique se os usuários selecionados (comprador, controlador, responsável técnico) são válidos.`);
+        } else if (errorMessage.includes('Internal Server Error') || errorMessage.includes('500')) {
+          alert(`❌ Erro interno do servidor!\n\nOcorreu um erro no servidor. Por favor:\n1. Verifique se todos os campos obrigatórios estão preenchidos\n2. Tente novamente em alguns segundos\n3. Se o problema persistir, contate o administrador`);
         } else {
           alert(`❌ Erro: ${errorMessage}`);
         }

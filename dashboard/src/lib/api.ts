@@ -29,7 +29,20 @@ const getAuthHeaders = (): HeadersInit => {
 
 // Função auxiliar para lidar com erros de resposta
 const handleResponse = async (response: Response) => {
+  console.log('🔍 handleResponse called with:', {
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    url: response.url
+  });
+  
   if (!response.ok) {
+    console.error('❌ Response not OK:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+    
     // Se o token expirou (401), redirecionar para login
     if (response.status === 401) {
       localStorage.removeItem('token');
@@ -40,12 +53,21 @@ const handleResponse = async (response: Response) => {
     
     let errorMessage;
     try {
-      const errorData = await response.json();
-      errorMessage = errorData.detail || errorData.message || 'Erro na requisição';
-    } catch {
+      const responseText = await response.text();
+      console.log('📄 Response text:', responseText);
+      
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.detail || errorData.message || 'Erro na requisição';
+      } catch {
+        errorMessage = responseText || `Erro ${response.status}: ${response.statusText}`;
+      }
+    } catch (textError) {
+      console.error('❌ Error reading response text:', textError);
       errorMessage = `Erro ${response.status}: ${response.statusText}`;
     }
     
+    console.error('💥 Throwing error:', errorMessage);
     throw new Error(errorMessage);
   }
   
@@ -126,16 +148,24 @@ export const api = {
     });
     
     try {
+      console.log('🚀 Making fetch request to:', fullUrl);
+      console.log('📤 Request details:', {
+        method: 'POST',
+        headers,
+        body: data ? JSON.stringify(data) : undefined
+      });
+      
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers,
         body: data ? JSON.stringify(data) : undefined,
       });
       
-      console.log('📥 POST Response:', {
+      console.log('📥 POST Response received:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
+        url: response.url,
         headers: Object.fromEntries(response.headers.entries())
       });
       

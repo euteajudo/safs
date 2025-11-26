@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: safs_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: safs_db
+      POSTGRES_USER: safs_user
+      POSTGRES_PASSWORD: safs_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - safs_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safs_user -d safs_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  safs_network:
+    driver: bridge

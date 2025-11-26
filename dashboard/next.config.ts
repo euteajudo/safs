@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/backend/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*', // Usar 127.0.0.1 em vez de localhost para evitar IPv6
+        destination: 'http://192.168.0.32:8000/api/:path*', // Usar IP local para conectar ao backend
       },
     ];
   },

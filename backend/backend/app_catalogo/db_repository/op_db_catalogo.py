@@ -105,26 +105,32 @@ async def criar_item(db: AsyncSession, item_data: dict) -> ItensCatalogo:
         # Adicionar processos se fornecidos
         if processo_ids:
             from app_catalogo.models.controle_processo import PlanejamentoAquisicao
-            processos = await db.execute(
+            processos_result = await db.execute(
                 select(PlanejamentoAquisicao).where(PlanejamentoAquisicao.id.in_(processo_ids))
             )
-            item.processos_adicionais.extend(processos.scalars().all())
+            processos_list = processos_result.scalars().all()
+            for processo in processos_list:
+                item.processos_adicionais.append(processo)
             
         # Adicionar usuários nos relacionamentos N:N se fornecidos
         if comprador_ids or controlador_ids:
             from app_catalogo.models.user import User
             
             if comprador_ids:
-                compradores = await db.execute(
+                compradores_result = await db.execute(
                     select(User).where(User.id.in_(comprador_ids))
                 )
-                item.compradores.extend(compradores.scalars().all())
+                compradores_list = compradores_result.scalars().all()
+                for comprador in compradores_list:
+                    item.compradores.append(comprador)
                 
             if controlador_ids:
-                controladores = await db.execute(
+                controladores_result = await db.execute(
                     select(User).where(User.id.in_(controlador_ids))
                 )
-                item.controladores.extend(controladores.scalars().all())
+                controladores_list = controladores_result.scalars().all()
+                for controlador in controladores_list:
+                    item.controladores.append(controlador)
                 
         
         await db.commit()
@@ -265,10 +271,12 @@ async def atualizar_item(db: AsyncSession, item_id: int, updates: Dict[str, Any]
             
             # Adicionar novos processos
             if processo_ids:
-                processos = await db.execute(
+                processos_result = await db.execute(
                     select(PlanejamentoAquisicao).where(PlanejamentoAquisicao.id.in_(processo_ids))
                 )
-                item.processos_adicionais.extend(processos.scalars().all())
+                processos_list = processos_result.scalars().all()
+                for processo in processos_list:
+                    item.processos_adicionais.append(processo)
         
         # Atualizar usuários nos relacionamentos N:N se fornecidos
         if any(ids is not None for ids in [comprador_ids, controlador_ids]):
@@ -277,18 +285,22 @@ async def atualizar_item(db: AsyncSession, item_id: int, updates: Dict[str, Any]
             if comprador_ids is not None:
                 item.compradores.clear()
                 if comprador_ids:
-                    compradores = await db.execute(
+                    compradores_result = await db.execute(
                         select(User).where(User.id.in_(comprador_ids))
                     )
-                    item.compradores.extend(compradores.scalars().all())
+                    compradores_list = compradores_result.scalars().all()
+                    for comprador in compradores_list:
+                        item.compradores.append(comprador)
                     
             if controlador_ids is not None:
                 item.controladores.clear()
                 if controlador_ids:
-                    controladores = await db.execute(
+                    controladores_result = await db.execute(
                         select(User).where(User.id.in_(controlador_ids))
                     )
-                    item.controladores.extend(controladores.scalars().all())
+                    controladores_list = controladores_result.scalars().all()
+                    for controlador in controladores_list:
+                        item.controladores.append(controlador)
                     
         
         await db.commit()

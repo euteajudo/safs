@@ -32,9 +32,6 @@ class ProcessoBase(BaseModel):
     # CAMPO N:N (nova funcionalidade)
     comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores responsáveis")
     
-    # CAMPO N:N (nova funcionalidade)
-    comprador_ids: Optional[List[int]] = Field(default=[], description="IDs dos compradores responsáveis")
-    
     @validator('objeto_aquisicao')
     def validate_objeto_aquisicao(cls, v):
         if v and not v.strip():
@@ -74,7 +71,7 @@ class ProcessoRead(ProcessoBase):
     id: int
     
     # RELACIONAMENTO N:N (nova funcionalidade)
-    compradores: Optional[List['UserRead']] = []
+    compradores: Optional[List['UserRead']] = Field(default=[], description="Lista de compradores responsáveis")
 
     class Config:
         from_attributes = True

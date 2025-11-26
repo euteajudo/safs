@@ -40,7 +40,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IconUpload, IconUser } from "@tabler/icons-react";
 import { useCurrentUser } from "@/contexts/auth-context";
-import { canCreateUserForUnit, getAssignableRoles, validateRoleAssignment } from "@/lib/permissions";
+import { canCreateUserForUnit, getAssignableRoles, validateUserRoles } from "@/lib/permissions";
 import { api } from "@/lib/api";
 
 const usuarioSchema = z.object({
@@ -56,7 +56,10 @@ const usuarioSchema = z.object({
   is_chefe_unidade: z.boolean().default(false),
   is_chefe_setor: z.boolean().default(false),
   is_funcionario: z.boolean().default(false),
-}).refine((data) => data.senha === data.confirmar_senha, {
+}).refine((data) => {
+  console.log('🔍 Validação senha:', { senha: data.senha, confirmar: data.confirmar_senha, iguais: data.senha === data.confirmar_senha });
+  return data.senha === data.confirmar_senha;
+}, {
   message: "Senhas não coincidem",
   path: ["confirmar_senha"],
 });
@@ -150,6 +153,9 @@ export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }:
   }, [open, mode]);
 
   async function onSubmit(values: UsuarioFormValues | UsuarioEditFormValues) {
+    console.log('🎬 onSubmit chamado com valores:', values);
+    console.log('🔍 Verificando se chegou no onSubmit...');
+    
     // Validar se as permissões selecionadas são válidas
     const selectedRoles = {
       is_superuser: values.is_superuser,
@@ -158,7 +164,14 @@ export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }:
       is_funcionario: values.is_funcionario,
     };
     
-    const validation = validateRoleAssignment(currentUser, selectedRoles);
+    // DEBUG: Vamos ver o que está sendo passado
+    console.log('=== DEBUG VALIDAÇÃO ===');
+    console.log('currentUser:', currentUser);
+    console.log('selectedRoles:', selectedRoles);
+    console.log('currentUser.is_superuser:', currentUser?.is_superuser, typeof currentUser?.is_superuser);
+    
+    const validation = validateUserRoles(currentUser, selectedRoles);
+    console.log('validation result:', validation);
     
     if (!validation.isValid) {
       const errorMessage = validation.errors ? validation.errors.join(', ') : 'Erro de validação de permissões';
@@ -177,8 +190,15 @@ export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }:
         await api.put(`/v1/users/${user?.id}`, userData);
         alert('Usuário editado com sucesso!');
       } else {
-        console.log("Criando novo usuário:", userData);
-        await api.post('/v1/users/', userData);
+        console.log("🚀 Criando novo usuário:", userData);
+        console.log("🎯 URL da requisição:", '/v1/users/');
+        console.log("📦 Dados enviados:", JSON.stringify(userData, null, 2));
+        
+        const response = await api.post('/v1/users/', userData);
+        console.log("✅ Resposta da API:", response);
+        console.log("📊 Status:", response.status);
+        console.log("📄 Dados da resposta:", response.data);
+        
         alert('Usuário criado com sucesso!');
       }
       
@@ -190,9 +210,24 @@ export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }:
         onSuccess();
       }
       
-    } catch (error) {
-      console.error('Erro ao salvar usuário:', error);
-      alert(`Erro ao ${mode === "edit" ? "editar" : "criar"} usuário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar usuário:', error);
+      console.error('📊 Tipo do erro:', typeof error);
+      console.error('🔍 Error object:', error);
+      
+      if (error?.response) {
+        console.error('📄 Resposta de erro da API:', error.response);
+        console.error('📊 Status de erro:', error.response.status);
+        console.error('📝 Dados de erro:', error.response.data);
+        console.error('🔧 Headers de erro:', error.response.headers);
+      }
+      
+      if (error?.request) {
+        console.error('📡 Request feito:', error.request);
+      }
+      
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Erro desconhecido';
+      alert(`Erro ao ${mode === "edit" ? "editar" : "criar"} usuário: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -284,7 +319,10 @@ export function UsuarioFormDialog({ trigger, user, mode = "create", onSuccess }:
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            console.log('❌ Erros de validação do formulário:', errors);
+            console.log('📋 Valores atuais do formulário:', form.getValues());
+          })} className="space-y-6">
             <ScrollArea className="h-[60vh] pr-4">
               <Tabs defaultValue="dados" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">

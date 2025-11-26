@@ -1,9 +1,13 @@
 """Schema de itens do catálogo"""
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
-from .user import User as UserRead
-from .controle_processos import ProcessoRead
+if TYPE_CHECKING:
+    from .user import User as UserRead
+    from .controle_processos import ProcessoRead
+else:
+    UserRead = 'UserRead'
+    ProcessoRead = 'ProcessoRead'
 
 
 class ItemCatalogoBase(BaseModel):
@@ -72,15 +76,15 @@ class ItemCatalogoRead(ItemCatalogoBase):
     id: int
     
     # RELACIONAMENTOS 1:N (mantidos para compatibilidade)
-    comprador: Optional[UserRead] = None
-    controlador: Optional[UserRead] = None
+    comprador: Optional['UserRead'] = Field(default=None, description="Comprador principal")
+    controlador: Optional['UserRead'] = Field(default=None, description="Controlador principal")
     
     # RELACIONAMENTOS N:N (nova funcionalidade)
     # Relacionamentos com processos
-    processos_adicionais: Optional[List[ProcessoRead]] = []
+    processos_adicionais: Optional[List['ProcessoRead']] = Field(default=[], description="Lista de processos adicionais")
     # Relacionamentos com múltiplos usuários
-    compradores: Optional[List[UserRead]] = []
-    controladores: Optional[List[UserRead]] = []
+    compradores: Optional[List['UserRead']] = Field(default=[], description="Lista de compradores")
+    controladores: Optional[List['UserRead']] = Field(default=[], description="Lista de controladores")
 
     class Config:
         from_attributes = True
